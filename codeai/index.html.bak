@@ -1068,18 +1068,16 @@
     if(body.childElementCount===0) reset();
   }
 
-  // Header / CTA links: open chat (works even if navbar is cloned for mobile)
-  function handleEnrollClick(e){
-    const a = e.target.closest("a.js-open-enroll-chat, a[href='#enroll']");
-    if(!a) return;
-    // Only intercept when it's intended to open enroll chat
-    if(!a.classList.contains("js-open-enroll-chat") && a.getAttribute("href") !== "#enroll") return;
-    e.preventDefault();
-    // keep hash for share/back button
-    if(location.hash !== "#enroll"){ history.replaceState(null, "", "#enroll"); }
-    openAndInit();
-  }
-  document.addEventListener("click", handleEnrollClick, true);
+  // Header / CTA links: open chat instead of only moving anchor
+  document.querySelectorAll(".js-open-enroll-chat").forEach((el)=>{
+    el.addEventListener("click", (e)=>{
+      // On index.html we can open immediately
+      e.preventDefault();
+      // keep hash for share/back button
+      if(location.hash !== "#enroll"){ history.replaceState(null, "", "#enroll"); }
+      openAndInit();
+    });
+  });
 
   // If user navigates to index.html#enroll from another page, open automatically
   function autoOpenFromHash(){
