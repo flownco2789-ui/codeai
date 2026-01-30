@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CodeAI 학부모 포털</title>
+  <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <script src="codeai-config.js"></script>
+  <script src="codeai-api.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    body { background:#f7f8fb; }
+    .card { border-radius:16px; }
+    .pill { display:inline-block; padding:.25rem .6rem; border-radius:999px; background:rgba(13,110,253,.1); color:#0d6efd; font-size:.85rem; }
+    .muted { color:#6c757d; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+  </style>
+</head>
+<body>
+  <div class="container py-4">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <div>
+        <h3 class="mb-1">학부모 포털</h3>
+        <div class="muted">결제 완료 후 발급된 코드로 로그인하면 학습리포트를 확인할 수 있어요.</div>
+      </div>
+      <div class="text-end">
+        <a href="index.html" class="btn btn-sm btn-outline-secondary">홈으로</a>
+      </div>
+    </div>
+
+    <div id="loginCard" class="card p-3 mb-3">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label">휴대폰</label>
+          <input id="phone" class="form-control" placeholder="01012345678">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">접속 코드</label>
+          <input id="code" class="form-control mono" placeholder="6자리 코드">
+        </div>
+        <div class="col-md-4">
+          <button id="loginBtn" class="btn btn-primary w-100">로그인</button>
+        </div>
+      </div>
+      <div id="loginMsg" class="small mt-2 muted"></div>
+    </div>
+
+    <div id="app" class="d-none">
+      <div class="row g-3">
+        <div class="col-lg-4">
+          <div class="card p-3">
+            <div class="d-flex align-items-center justify-content-between">
+              <h5 class="mb-0">수강 목록</h5>
+              <button id="logoutBtn" class="btn btn-sm btn-outline-secondary">로그아웃</button>
+            </div>
+            <div id="enrollList" class="mt-3"></div>
+          </div>
+        </div>
+        <div class="col-lg-8">
+          <div class="card p-3">
+            <div class="d-flex align-items-center justify-content-between">
+              <h5 class="mb-0">학습 리포트</h5>
+              <span id="enrollMeta" class="muted small"></span>
+            </div>
+            <div id="reports" class="mt-3 muted">왼쪽에서 수강을 선택해 주세요.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const $ = (id)=>document.getElementById(id);
+  const TOKEN_KEY = "codeai_portal_token";
+
+  function normPhone(v){ return String(v||"").replace(/[^0-9]/g,""); }
+  function esc(s){ return String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;"); }
+
+  async function login(){
+    $("loginMsg").textContent = "로그인 중…";
+    try{
+      const phone = normPhone($("phone").value);
+      const code = $("code").value.trim();
+      const out = await CodeAI.request("/api/v1/portal/login", {
+        method:"POST",
+        body: JSON.stringify({ phone, code })
+      });
+      localStorage.setItem(TOKEN_KEY, out.token);
+      $("loginCard").classList.add("d-none");
+      $("app").classList.remove("d-none");
+      await loadEnrollments();
+      $("loginMsg").textContent = "";
+    }catch(e){
+      $("loginMsg").textContent = "로그인 실패: " + e.message;
+    }
+  }
+
+  async function loadEnrollments(){
+    const out = await CodeAI.authRequest("/api/v1/portal/enrollments", TOKEN_KEY, { method:"GET" });
+    const list = out.enrollments || [];
+    const wrap = $("enrollList");
+    wrap.innerHTML = "";
+    if(list.length === 0){
+      wrap.innerHTML = '<div class="muted small">표시할 수강정보가 없습니다.</div>';
+      return;
+    }
+    list.forEach((r, idx)=>{
+      const btn = document.createElement("button");
+      btn.className = "btn btn-outline-primary w-100 text-start mb-2";
+      btn.innerHTML = `
+        <div class="d-flex justify-content-between">
+          <div><strong>#${r.id}</strong> <span class="pill ms-1">${esc(r.status)}</span></div>
+          <div class="small muted">${esc(r.mode || "")}</div>
+        </div>
+        <div class="small muted mt-1">강사: ${esc(r.instructor_name)} ${r.instructor_region ? "· " + esc(r.instructor_region) : ""}</div>
+      `;
+      btn.addEventListener("click", ()=>selectEnrollment(r));
+      wrap.appendChild(btn);
+      if(idx===0) selectEnrollment(r);
+    });
+  }
+
+  let chart = null;
+  function renderAlgorithmChart(canvasId, series){
+    const ctx = document.getElementById(canvasId);
+    if(!ctx) return;
+    if(chart) { chart.destroy(); chart = null; }
+    const labels = series.map(s=>s.date || s.label || "");
+    const scores = series.map(s=>Number(s.score ?? s.value ?? 0));
+    chart = new Chart(ctx, {
+      type: "line",
+      data: { labels, datasets: [{ label: "점수", data: scores }]},
+      options: {
+        responsive: true,
+        scales: { y: { beginAtZero: true, suggestedMax: 100 } }
+      }
+    });
+  }
+
+  async function selectEnrollment(r){
+    $("enrollMeta").textContent = `수강기간: ${(r.start_date||"-")} ~ ${(r.end_date||"-")}`;
+    $("reports").innerHTML = "<div class='muted'>리포트 불러오는 중…</div>";
+    const out = await CodeAI.authRequest(`/api/v1/portal/enrollments/${r.id}/reports`, TOKEN_KEY, { method:"GET" });
+    const reports = out.reports || [];
+    if(reports.length === 0){
+      $("reports").innerHTML = "<div class='muted'>승인된 리포트가 아직 없습니다.</div>";
+      return;
+    }
+
+    const html = reports.map(rep=>{
+      const type = rep.type === "ALGORITHM" ? "알고리즘" : "프로젝트";
+      const score = (rep.score === null || rep.score === undefined) ? "" : ` · 점수: <strong>${rep.score}</strong>`;
+      let body = `
+        <div class="card p-3 mb-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <div class="small muted">${esc(type)}${score}</div>
+              <div class="h6 mb-0">${esc(rep.title)}</div>
+            </div>
+            <div class="small muted">${esc(String(rep.created_at||"").slice(0,10))}</div>
+          </div>
+      `;
+
+      if(rep.type === "ALGORITHM"){
+        body += `
+          <div class="mt-3">
+            <div class="small muted mb-2">성장곡선(점수 기반)</div>
+            <canvas id="chart_${rep.id}" height="120"></canvas>
+          </div>
+        `;
+      } else {
+        body += `
+          ${rep.summary ? `<div class="mt-3"><div class="small muted">요약</div><div>${esc(rep.summary)}</div></div>` : ""}
+          ${rep.feedback ? `<div class="mt-3"><div class="small muted">강사 첨삭</div><div>${esc(rep.feedback)}</div></div>` : ""}
+        `;
+      }
+
+      body += `</div>`;
+      return body;
+    }).join("");
+
+    $("reports").innerHTML = html;
+
+    const algo = reports.find(x=>x.type==="ALGORITHM");
+    if(algo){
+      const series = (algo.raw_data && (algo.raw_data.scores || algo.raw_data.series)) ? (algo.raw_data.scores || algo.raw_data.series) : [
+        { label:"이번", score: algo.score ?? 0 }
+      ];
+      renderAlgorithmChart(`chart_${algo.id}`, series);
+    }
+  }
+
+  function boot(){
+    const t = localStorage.getItem(TOKEN_KEY);
+    if(t){
+      $("loginCard").classList.add("d-none");
+      $("app").classList.remove("d-none");
+      loadEnrollments().catch(()=>{});
+    }
+  }
+
+  $("loginBtn").addEventListener("click", login);
+  $("logoutBtn").addEventListener("click", ()=>{
+    localStorage.removeItem(TOKEN_KEY);
+    location.reload();
+  });
+
+  boot();
+})();
+</script>
+</body>
+</html>

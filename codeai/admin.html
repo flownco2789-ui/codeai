@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CodeAI 관리자</title>
+  <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <script src="codeai-config.js"></script>
+  <script src="codeai-api.js"></script>
+  <style>
+    body { background:#f7f8fb; }
+    .card { border-radius:16px; }
+    .muted { color:#6c757d; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .smallbtn { padding:.25rem .5rem; font-size:.85rem; }
+  </style>
+</head>
+<body>
+  <div class="container py-4">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <div>
+        <h3 class="mb-1">관리자 페이지</h3>
+        <div class="muted">강사 검수 / 수강관리 / 결제완료 처리 / 리포트 검수</div>
+      </div>
+      <div class="text-end">
+        <a href="index.html" class="btn btn-sm btn-outline-secondary">홈으로</a>
+      </div>
+    </div>
+
+    <div id="loginCard" class="card p-3 mb-3">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-5">
+          <label class="form-label">이메일</label>
+          <input id="email" class="form-control" placeholder="superadmin@codeai.co.kr">
+        </div>
+        <div class="col-md-5">
+          <label class="form-label">비밀번호</label>
+          <input id="password" type="password" class="form-control" placeholder="admin1234!">
+        </div>
+        <div class="col-md-2">
+          <button id="loginBtn" class="btn btn-primary w-100">로그인</button>
+        </div>
+      </div>
+      <div id="loginMsg" class="small mt-2 muted"></div>
+    </div>
+
+    <div id="app" class="d-none">
+      <div class="d-flex justify-content-between mb-2">
+        <div class="muted small">※ 운영 서버에서만 접근하도록 IP 제한/방화벽 권장</div>
+        <button id="logoutBtn" class="btn btn-sm btn-outline-secondary">로그아웃</button>
+      </div>
+
+      <ul class="nav nav-tabs mb-3" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-tab="instApps">강사 신청</button></li>
+        <li class="nav-item"><button class="nav-link" data-tab="students">학생 신청</button></li>
+        <li class="nav-item"><button class="nav-link" data-tab="enrollments">수강(Enrollment)</button></li>
+        <li class="nav-item"><button class="nav-link" data-tab="reports">리포트 검수</button></li>
+      </ul>
+
+      <div id="tab-instApps" class="tabpane"></div>
+      <div id="tab-students" class="tabpane d-none"></div>
+      <div id="tab-enrollments" class="tabpane d-none"></div>
+      <div id="tab-reports" class="tabpane d-none"></div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const $ = (id)=>document.getElementById(id);
+  const TOKEN_KEY = "codeai_admin_token";
+  function esc(s){ return String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;"); }
+
+  function showTab(name){
+    ["instApps","students","enrollments","reports"].forEach(t=>{
+      $("tab-" + t).classList.add("d-none");
+      document.querySelector(`button[data-tab="${t}"]`).classList.remove("active");
+    });
+    $("tab-" + name).classList.remove("d-none");
+    document.querySelector(`button[data-tab="${name}"]`).classList.add("active");
+  }
+
+  async function login(){
+    $("loginMsg").textContent = "로그인 중…";
+    try{
+      const out = await CodeAI.request("/api/v1/admin/auth/login", {
+        method:"POST",
+        body: JSON.stringify({ email: $("email").value.trim(), password: $("password").value })
+      });
+      localStorage.setItem(TOKEN_KEY, out.token);
+      $("loginCard").classList.add("d-none");
+      $("app").classList.remove("d-none");
+      await refreshAll();
+      $("loginMsg").textContent = "";
+    }catch(e){
+      $("loginMsg").textContent = "로그인 실패: " + e.message;
+    }
+  }
+
+  async function refreshAll(){
+    await loadInstructorApps();
+    await loadStudents();
+    await loadEnrollments();
+    await loadReports();
+  }
+
+  async function loadInstructorApps(){
+    const out = await CodeAI.authRequest("/api/v1/admin/instructor-applications", TOKEN_KEY, { method:"GET" });
+    const list = out.list || [];
+    const wrap = $("tab-instApps");
+    wrap.innerHTML = "";
+    if(!list.length){
+      wrap.innerHTML = "<div class='card p-3 muted'>대기 중인 강사 신청이 없습니다.</div>";
+      return;
+    }
+    list.forEach(x=>{
+      const card = document.createElement("div");
+      card.className = "card p-3 mb-3";
+      card.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="h6 mb-1">#${x.id} <span class="badge text-bg-warning">${esc(x.status)}</span></div>
+            <div class="muted small">이름: ${esc(x.name)} · ${esc(x.phone)} · ${esc(x.email)}</div>
+            <div class="muted small">과목: ${esc(x.subjects)} · 방식: ${esc(x.modes)} · 지역: ${esc(x.region||"-")}</div>
+            <div class="muted small">학력: ${esc(x.education||"-")} · 경력: ${esc(x.career||"-")}</div>
+            ${x.photo_url ? `<div class="mt-2"><img src="${esc(x.photo_url)}" style="max-width:180px;border-radius:12px;border:1px solid rgba(0,0,0,.08);"></div>` : ""}
+          </div>
+          <div class="text-end">
+            <button class="btn btn-sm btn-success smallbtn" data-approve="${x.id}">승인</button>
+            <button class="btn btn-sm btn-outline-danger smallbtn" data-reject="${x.id}">반려</button>
+          </div>
+        </div>
+      `;
+      wrap.appendChild(card);
+    });
+
+    wrap.querySelectorAll("[data-approve]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        const id = btn.getAttribute("data-approve");
+        const note = prompt("승인 메모(선택)");
+        const out = await CodeAI.authRequest(`/api/v1/admin/instructor-applications/${id}/review`, TOKEN_KEY, {
+          method:"PUT",
+          body: JSON.stringify({ status:"APPROVED", note: note || null })
+        });
+        alert("승인 완료. 강사 임시비밀번호: " + out.tempPassword);
+        refreshAll();
+      });
+    });
+
+    wrap.querySelectorAll("[data-reject]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        const id = btn.getAttribute("data-reject");
+        const note = prompt("반려 사유(필수)");
+        if(!note) return;
+        await CodeAI.authRequest(`/api/v1/admin/instructor-applications/${id}/review`, TOKEN_KEY, {
+          method:"PUT",
+          body: JSON.stringify({ status:"REJECTED", note })
+        });
+        alert("반려 처리되었습니다.");
+        refreshAll();
+      });
+    });
+  }
+
+  async function loadStudents(){
+    const out = await CodeAI.authRequest("/api/v1/admin/student-applications", TOKEN_KEY, { method:"GET" });
+    const list = out.list || [];
+    const wrap = $("tab-students");
+    wrap.innerHTML = "";
+    if(!list.length){
+      wrap.innerHTML = "<div class='card p-3 muted'>학생 신청이 없습니다.</div>";
+      return;
+    }
+    list.forEach(x=>{
+      const card = document.createElement("div");
+      card.className = "card p-3 mb-3";
+      card.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="h6 mb-1">#${x.id} <span class="badge text-bg-primary">${esc(x.status)}</span></div>
+            <div class="muted small">이름: ${esc(x.name)} · ${esc(x.phone)}</div>
+            <div class="muted small">과목: ${esc(x.subjects)} · 목적: ${esc(x.target||"-")}</div>
+            <div class="muted small">방식: ${esc(x.mode)} ${x.region ? "· " + esc(x.region) : ""}</div>
+          </div>
+          <div class="text-end muted small">선택 강사ID: ${esc(x.selected_instructor_id||"-")}</div>
+        </div>
+      `;
+      wrap.appendChild(card);
+    });
+  }
+
+  async function loadEnrollments(){
+    const out = await CodeAI.authRequest("/api/v1/admin/enrollments", TOKEN_KEY, { method:"GET" });
+    const list = out.list || [];
+    const wrap = $("tab-enrollments");
+    wrap.innerHTML = "";
+    if(!list.length){
+      wrap.innerHTML = "<div class='card p-3 muted'>수강 정보가 없습니다.</div>";
+      return;
+    }
+    list.forEach(x=>{
+      const card = document.createElement("div");
+      card.className = "card p-3 mb-3";
+      card.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="h6 mb-1">#${x.id} <span class="badge text-bg-secondary">${esc(x.status)}</span></div>
+            <div class="muted small">학생: ${esc(x.student_name)} · ${esc(x.student_phone)}</div>
+            <div class="muted small">강사: ${esc(x.instructor_name)} · ${esc(x.instructor_email)}</div>
+            <div class="muted small">기간: ${esc(x.start_date||"-")} ~ ${esc(x.end_date||"-")}</div>
+          </div>
+          <div class="text-end">
+            <button class="btn btn-sm btn-outline-primary smallbtn" data-period="${x.id}">기간 입력</button>
+            <button class="btn btn-sm btn-success smallbtn" data-paid="${x.id}">결제완료 처리</button>
+          </div>
+        </div>
+        <div class="small muted mt-2">※ 결제완료 처리 시 학부모 포털 접속코드가 발급됩니다.</div>
+      `;
+      wrap.appendChild(card);
+    });
+
+    wrap.querySelectorAll("[data-period]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        const id = btn.getAttribute("data-period");
+        const start = prompt("수강 시작일 (YYYY-MM-DD)");
+        const end = prompt("수강 종료일 (YYYY-MM-DD)");
+        if(!start || !end) return;
+        await CodeAI.authRequest(`/api/v1/admin/enrollments/${id}/set-period`, TOKEN_KEY, {
+          method:"PUT",
+          body: JSON.stringify({ startDate:start, endDate:end })
+        });
+        alert("기간이 저장되었습니다.");
+        loadEnrollments();
+      });
+    });
+
+    wrap.querySelectorAll("[data-paid]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        const id = btn.getAttribute("data-paid");
+        const ok = confirm("결제완료 처리하시겠습니까? (포털코드 발급)");
+        if(!ok) return;
+        const out = await CodeAI.authRequest(`/api/v1/admin/enrollments/${id}/mark-paid`, TOKEN_KEY, { method:"POST" });
+        alert("결제완료 처리됨. 포털코드: " + out.portalCode + "\n(현재는 알림로그만 기록됩니다)");
+        loadEnrollments();
+      });
+    });
+  }
+
+  async function loadReports(){
+    const out = await CodeAI.authRequest("/api/v1/admin/reports", TOKEN_KEY, { method:"GET" });
+    const list = out.list || [];
+    const wrap = $("tab-reports");
+    wrap.innerHTML = "";
+    if(!list.length){
+      wrap.innerHTML = "<div class='card p-3 muted'>검수할 리포트가 없습니다.</div>";
+      return;
+    }
+    list.forEach(x=>{
+      const type = x.type === "ALGORITHM" ? "알고리즘" : "프로젝트";
+      const card = document.createElement("div");
+      card.className = "card p-3 mb-3";
+      card.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="h6 mb-1">#${x.id} <span class="badge text-bg-warning">${esc(x.status)}</span></div>
+            <div class="muted small">수강ID: ${x.enrollment_id} · 유형: ${type} ${x.score!==null && x.score!==undefined ? "· 점수: " + esc(x.score) : ""}</div>
+            <div class="muted small">제목: ${esc(x.title)}</div>
+            ${x.summary ? `<div class="mt-2"><div class="small muted">요약</div><div>${esc(x.summary)}</div></div>` : ""}
+            ${x.feedback ? `<div class="mt-2"><div class="small muted">강사 첨삭</div><div>${esc(x.feedback)}</div></div>` : ""}
+          </div>
+          <div class="text-end">
+            <button class="btn btn-sm btn-success smallbtn" data-rapp="${x.id}">승인</button>
+            <button class="btn btn-sm btn-outline-danger smallbtn" data-rrej="${x.id}">반려</button>
+          </div>
+        </div>
+      `;
+      wrap.appendChild(card);
+    });
+
+    wrap.querySelectorAll("[data-rapp]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        const id = btn.getAttribute("data-rapp");
+        const note = prompt("승인 메모(선택)");
+        await CodeAI.authRequest(`/api/v1/admin/reports/${id}/review`, TOKEN_KEY, {
+          method:"PUT",
+          body: JSON.stringify({ status:"APPROVED", note: note || null })
+        });
+        alert("승인되었습니다.");
+        loadReports();
+      });
+    });
+    wrap.querySelectorAll("[data-rrej]").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        const id = btn.getAttribute("data-rrej");
+        const note = prompt("반려 사유(필수)");
+        if(!note) return;
+        await CodeAI.authRequest(`/api/v1/admin/reports/${id}/review`, TOKEN_KEY, {
+          method:"PUT",
+          body: JSON.stringify({ status:"REJECTED", note })
+        });
+        alert("반려되었습니다.");
+        loadReports();
+      });
+    });
+  }
+
+  function boot(){
+    const t = localStorage.getItem(TOKEN_KEY);
+    if(t){
+      $("loginCard").classList.add("d-none");
+      $("app").classList.remove("d-none");
+      refreshAll().catch(()=>{});
+    }
+  }
+
+  document.querySelectorAll("button[data-tab]").forEach(b=>{
+    b.addEventListener("click", ()=>showTab(b.getAttribute("data-tab")));
+  });
+  showTab("instApps");
+
+  $("loginBtn").addEventListener("click", login);
+  $("logoutBtn").addEventListener("click", ()=>{ localStorage.removeItem(TOKEN_KEY); location.reload(); });
+
+  boot();
+})();
+</script>
+</body>
+</html>
