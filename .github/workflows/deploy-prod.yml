@@ -2,7 +2,7 @@ name: Deploy (prod)
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "master"]
   workflow_dispatch:
 
 concurrency:
@@ -14,4 +14,4 @@ jobs:
     runs-on: [self-hosted, codeai-prod]
     steps:
       - name: Deploy on server
-        run: sudo /usr/local/bin/deploy-codeai.sh
+        run: sudo -n bash /usr/local/bin/deploy-codeai.sh
