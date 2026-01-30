@@ -834,16 +834,11 @@
     if(state.step === "confirm"){
       const a = state.answers;
       const summary =
-        "아래 내용으로 신청할게요.
-" +
-        "• 성함: " + a.name + "
-" +
-        "• 연락처: " + a.phone + "
-" +
-        "• 과목: " + a.subjects.join(", ") + "
-" +
-        "• 목적: " + (a.target||"-") + "
-" +
+        "아래 내용으로 신청할게요." +
+        "• 성함: " + a.name + "" +
+        "• 연락처: " + a.phone + "" +
+        "• 과목: " + a.subjects.join(", ") + "" +
+        "• 목적: " + (a.target||"-") + "" +
         "• 방식: " + a.mode + (a.region ? (" / " + a.region) : "");
       addMsg("bot", summary);
       addMsg("bot","맞으면 '신청하기'라고 입력해 주세요. 수정하려면 '처음'이라고 입력해 주세요.");
@@ -857,8 +852,7 @@
       return;
     }
     if(state.step === "done"){
-      addMsg("bot","신청이 완료됐어요. 강사/관리자가 확인 후 연락드리겠습니다.
-(필수 절차) 강사와 사전 유선 상담 후 최종 확정됩니다.");
+      addMsg("bot","신청이 완료됐어요. 강사/관리자가 확인 후 연락드리겠습니다.(필수 절차) 강사와 사전 유선 상담 후 최종 확정됩니다.");
       const box = document.createElement("div");
       box.innerHTML = `
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -985,8 +979,7 @@
     }
 
     if(state.step === "subjects"){
-      const parts = t.split(/[,/
-]/).map(s=>s.trim()).filter(Boolean);
+      const parts = t.split(/[,/]/).map(s=>s.trim()).filter(Boolean);
       if(!parts.length){
         addMsg("bot","과목을 1개 이상 입력해 주세요.");
         return;
@@ -1039,8 +1032,7 @@
         try{
           await submitStudentApplication();
         }catch(e){
-          addMsg("bot","신청 실패: " + e.message + "
-잠시 후 다시 시도해 주세요.");
+          addMsg("bot","신청 실패: " + e.message + "잠시 후 다시 시도해 주세요.");
           state.step = "confirm";
           ask();
         }
