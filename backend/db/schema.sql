@@ -1,0 +1,160 @@
+-- CodeAI Fullstack V2 schema
+-- MySQL 8+ 권장
+
+CREATE TABLE IF NOT EXISTS admin_users (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  email VARCHAR(190) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  role ENUM('SUPER_ADMIN','SUB_ADMIN','INSTRUCTOR_ADMIN','STUDENT_ADMIN') NOT NULL,
+  phone VARCHAR(20) NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS instructor_applications (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(80) NOT NULL,
+  phone VARCHAR(20) NOT NULL,
+  email VARCHAR(190) NOT NULL,
+  subjects JSON NOT NULL,
+  modes JSON NOT NULL,
+  region VARCHAR(80) NULL,
+  education VARCHAR(255) NULL,
+  career TEXT NULL,
+  major VARCHAR(255) NULL,
+  age INT NULL,
+  gender ENUM('M','F','OTHER') NULL,
+  photo_url VARCHAR(512) NULL,
+  status ENUM('PENDING','APPROVED','REJECTED') NOT NULL DEFAULT 'PENDING',
+  review_note TEXT NULL,
+  reviewed_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_instructor_apps_status (status),
+  INDEX idx_instructor_apps_phone (phone),
+  INDEX idx_instructor_apps_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS instructors (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(80) NOT NULL,
+  phone VARCHAR(20) NOT NULL,
+  email VARCHAR(190) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  subjects JSON NOT NULL,
+  modes JSON NOT NULL,
+  region VARCHAR(80) NULL,
+  education VARCHAR(255) NULL,
+  career TEXT NULL,
+  major VARCHAR(255) NULL,
+  age INT NULL,
+  gender ENUM('M','F','OTHER') NULL,
+  photo_url VARCHAR(512) NULL,
+  status ENUM('ACTIVE','SUSPENDED') NOT NULL DEFAULT 'ACTIVE',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_instructors_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS student_applications (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(80) NOT NULL,
+  phone VARCHAR(20) NOT NULL,
+  subjects JSON NOT NULL,
+  target VARCHAR(40) NULL,
+  mode ENUM('ZOOM','OFFLINE_1_1','OFFLINE_GROUP') NOT NULL,
+  region VARCHAR(80) NULL,
+  note TEXT NULL,
+  status ENUM('SUBMITTED','MATCHING','INSTRUCTOR_SELECTED','ENROLLED','CANCELLED') NOT NULL DEFAULT 'SUBMITTED',
+  selected_instructor_id BIGINT UNSIGNED NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_student_apps_phone (phone),
+  INDEX idx_student_apps_status (status),
+  CONSTRAINT fk_student_selected_instructor FOREIGN KEY (selected_instructor_id) REFERENCES instructors(id)
+    ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS enrollments (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  student_application_id BIGINT UNSIGNED NOT NULL,
+  instructor_id BIGINT UNSIGNED NOT NULL,
+  status ENUM('BEFORE_PAYMENT','CONSULT_DONE','PAYMENT_REQUESTED','PAID','IN_PROGRESS','COMPLETED','CANCELLED') NOT NULL DEFAULT 'BEFORE_PAYMENT',
+  start_date DATE NULL,
+  end_date DATE NULL,
+  consulted_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_enr_student_app FOREIGN KEY (student_application_id) REFERENCES student_applications(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_enr_instructor FOREIGN KEY (instructor_id) REFERENCES instructors(id)
+    ON DELETE RESTRICT,
+  INDEX idx_enr_status (status),
+  INDEX idx_enr_instructor (instructor_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS payments (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  enrollment_id BIGINT UNSIGNED NOT NULL,
+  amount INT NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  status ENUM('REQUESTED','PRODUCT_CREATED','PAYMENT_VERIFIED','FAILED','CANCELLED') NOT NULL DEFAULT 'REQUESTED',
+  smartstore_product_id VARCHAR(64) NULL,
+  smartstore_product_url VARCHAR(512) NULL,
+  smartstore_order_id VARCHAR(64) NULL,
+  requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  verified_at DATETIME NULL,
+  meta JSON NULL,
+  CONSTRAINT fk_pay_enrollment FOREIGN KEY (enrollment_id) REFERENCES enrollments(id)
+    ON DELETE CASCADE,
+  INDEX idx_pay_status (status),
+  INDEX idx_pay_enrollment (enrollment_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS reports (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  enrollment_id BIGINT UNSIGNED NOT NULL,
+  instructor_id BIGINT UNSIGNED NOT NULL,
+  type ENUM('PROJECT','ALGORITHM') NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  summary TEXT NULL,
+  feedback TEXT NULL,
+  score DECIMAL(6,2) NULL,
+  raw_data JSON NULL,
+  status ENUM('PENDING','APPROVED','REJECTED') NOT NULL DEFAULT 'PENDING',
+  review_note TEXT NULL,
+  reviewed_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_rep_enrollment FOREIGN KEY (enrollment_id) REFERENCES enrollments(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_rep_instructor FOREIGN KEY (instructor_id) REFERENCES instructors(id)
+    ON DELETE RESTRICT,
+  INDEX idx_rep_status (status),
+  INDEX idx_rep_enrollment (enrollment_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS portal_access_codes (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  enrollment_id BIGINT UNSIGNED NOT NULL,
+  phone VARCHAR(20) NOT NULL,
+  code_hash VARCHAR(255) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_used_at DATETIME NULL,
+  CONSTRAINT fk_portal_enrollment FOREIGN KEY (enrollment_id) REFERENCES enrollments(id)
+    ON DELETE CASCADE,
+  INDEX idx_portal_phone (phone),
+  INDEX idx_portal_expires (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS notification_logs (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  channel ENUM('SMS','KAKAO','EMAIL','INTERNAL') NOT NULL DEFAULT 'INTERNAL',
+  event_type VARCHAR(64) NOT NULL,
+  to_role VARCHAR(32) NULL,
+  to_phone VARCHAR(20) NULL,
+  payload JSON NULL,
+  status ENUM('QUEUED','SENT','FAILED') NOT NULL DEFAULT 'QUEUED',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_notif_event (event_type),
+  INDEX idx_notif_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

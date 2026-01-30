@@ -1,0 +1,16 @@
+[Unit]
+Description=CodeAI Apply API
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/codeai-api
+EnvironmentFile=/opt/codeai-api/.env
+ExecStart=/usr/bin/node /opt/codeai-api/src/index.js
+Restart=always
+RestartSec=3
+User=www-data
+Group=www-data
+
+[Install]
+WantedBy=multi-user.target
