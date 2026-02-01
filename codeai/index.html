@@ -804,8 +804,7 @@
     };
 
     if(state.step === "subjects"){
-      addMsg("bot","안녕하세요! 학부모/학생 수강신청을 도와드릴게요 🙂
-먼저 원하시는 과목을 입력해 주세요. (예: 파이썬, 웹개발, C++, 알고리즘)");
+      addMsg("bot","안녕하세요! 학부모/학생 수강신청을 도와드릴게요 🙂먼저 원하시는 과목을 입력해 주세요. (예: 파이썬, 웹개발, C++, 알고리즘)");
       setQuick([{label:"파이썬",value:"파이썬"},{label:"웹개발",value:"웹개발"},{label:"알고리즘",value:"알고리즘"}]);
       return;
     }
@@ -852,18 +851,12 @@
     }
     if(state.step === "confirm"){
       const summary =
-        "아래 내용으로 신청할게요.
-" +
-        "• 과목: " + (a.subjects ? a.subjects.join(", ") : "-") + "
-" +
-        "• 목적: " + (a.target||"-") + "
-" +
-        "• 방식: " + (a.mode === "ZOOM" ? "줌(전국)" : (a.mode === "OFFLINE_1_1" ? "오프라인 1:1" : "오프라인 그룹")) + (a.region ? (" / " + a.region) : "") + "
-" +
-        "• 선호 강사: " + prefLabel(a.prefType) + "
-" +
-        "• 성함: " + (a.name||"-") + "
-" +
+        "아래 내용으로 신청할게요." +
+        "• 과목: " + (a.subjects ? a.subjects.join(", ") : "-") + "" +
+        "• 목적: " + (a.target||"-") + "" +
+        "• 방식: " + (a.mode === "ZOOM" ? "줌(전국)" : (a.mode === "OFFLINE_1_1" ? "오프라인 1:1" : "오프라인 그룹")) + (a.region ? (" / " + a.region) : "") + "" +
+        "• 선호 강사: " + prefLabel(a.prefType) + "" +
+        "• 성함: " + (a.name||"-") + "" +
         "• 연락처: " + (a.phone||"-");
       addMsg("bot", summary);
       addMsg("bot","맞으면 '신청하기'라고 입력해 주세요. 수정하려면 '처음'이라고 입력해 주세요.");
