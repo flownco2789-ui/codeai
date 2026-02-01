@@ -10,9 +10,11 @@ export async function logNotification(pool, {
   payload=null,
   status="QUEUED"
 }){
+  const payloadJson = (payload === null || payload === undefined) ? null : JSON.stringify(payload);
+
   await pool.query(
     "INSERT INTO notification_logs (channel,event_type,to_role,to_phone,payload,status) VALUES (:channel,:eventType,:toRole,:toPhone,:payload,:status)",
-    { channel, eventType, toRole, toPhone, payload, status }
+    { channel, eventType, toRole, toPhone, payload: payloadJson, status }
   );
 }
 
