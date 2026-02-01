@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS instructor_applications (
   subjects JSON NOT NULL,
   modes JSON NOT NULL,
   region VARCHAR(80) NULL,
+  instructor_type ENUM('COLLEGE','EMPLOYEE','FREELANCER','FULLTIME_TUTOR','OTHER') NULL,
   education VARCHAR(255) NULL,
   career TEXT NULL,
   major VARCHAR(255) NULL,
@@ -44,6 +45,7 @@ CREATE TABLE IF NOT EXISTS instructors (
   subjects JSON NOT NULL,
   modes JSON NOT NULL,
   region VARCHAR(80) NULL,
+  instructor_type ENUM('COLLEGE','EMPLOYEE','FREELANCER','FULLTIME_TUTOR','OTHER') NULL,
   education VARCHAR(255) NULL,
   career TEXT NULL,
   major VARCHAR(255) NULL,
@@ -64,6 +66,7 @@ CREATE TABLE IF NOT EXISTS student_applications (
   target VARCHAR(40) NULL,
   mode ENUM('ZOOM','OFFLINE_1_1','OFFLINE_GROUP') NOT NULL,
   region VARCHAR(80) NULL,
+  preferred_instructor_type ENUM('ANY','COLLEGE','EMPLOYEE','FREELANCER','FULLTIME_TUTOR','OTHER') NOT NULL DEFAULT 'ANY',
   note TEXT NULL,
   status ENUM('SUBMITTED','MATCHING','INSTRUCTOR_SELECTED','ENROLLED','CANCELLED') NOT NULL DEFAULT 'SUBMITTED',
   selected_instructor_id BIGINT UNSIGNED NULL,
@@ -158,3 +161,8 @@ CREATE TABLE IF NOT EXISTS notification_logs (
   INDEX idx_notif_event (event_type),
   INDEX idx_notif_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- schema-migrations
+ALTER TABLE student_applications ADD COLUMN preferred_instructor_type ENUM('ANY','COLLEGE','EMPLOYEE','FREELANCER','FULLTIME_TUTOR','OTHER') NOT NULL DEFAULT 'ANY';
+ALTER TABLE instructors ADD COLUMN instructor_type ENUM('COLLEGE','EMPLOYEE','FREELANCER','FULLTIME_TUTOR','OTHER') NULL;
+ALTER TABLE instructor_applications ADD COLUMN instructor_type ENUM('COLLEGE','EMPLOYEE','FREELANCER','FULLTIME_TUTOR','OTHER') NULL;

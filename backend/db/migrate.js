@@ -31,7 +31,17 @@ async function main(){
     .filter(Boolean);
 
   for(const st of statements){
-    await conn.query(st);
+    try{
+      await conn.query(st);
+    }catch(e){
+      // allow re-run: ignore "already exists" cases
+      const code = e && e.code;
+      if(code === "ER_TABLE_EXISTS_ERROR" || code === "ER_DUP_FIELDNAME" || code === "ER_DUP_KEYNAME"){
+        continue;
+      }
+      // Some MySQL versions throw ER_PARSE_ERROR on ADD COLUMN when already exists with different syntax; do not ignore.
+      throw e;
+    }
   }
 
   await conn.end();

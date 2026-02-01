@@ -95,22 +95,31 @@ app.post("/api/v1/public/student-applications", async (req,res)=>{
     const mode = mustStr(req.body?.mode);
     const region = mustStr(req.body?.region) || null;
     const note = mustStr(req.body?.note) || null;
+    const preferredInstructorTypeRaw = mustStr(req.body?.preferredInstructorType) || mustStr(req.body?.preferred_instructor_type) || null;
+    const preferredInstructorType = (preferredInstructorTypeRaw && preferredInstructorTypeRaw.trim()) ? preferredInstructorTypeRaw.trim() : "ANY";
 
     if(!name) return bad(res,"INVALID_NAME","name required");
     if(!phone || !isValidPhone(phone)) return bad(res,"INVALID_PHONE","phone invalid");
     if(!subjects.length) return bad(res,"INVALID_SUBJECTS","subjects required");
     if(!mode || !["ZOOM","OFFLINE_1_1","OFFLINE_GROUP"].includes(mode)) return bad(res,"INVALID_MODE","mode invalid");
+    if(!["ANY","COLLEGE","EMPLOYEE","FREELANCER","FULLTIME_TUTOR","OTHER"].includes(preferredInstructorType)){
+      return bad(res,"INVALID_PREFERRED_INSTRUCTOR_TYPE","preferredInstructorType invalid");
+    }
+    // 오프라인 수업은 지역 입력 권장(필수 처리)
+    if(mode !== "ZOOM" && (!region || !String(region).trim())){
+      return bad(res,"INVALID_REGION","region required for offline mode");
+    }
 
     const meta = pickMeta(req);
     const [r] = await pool.query(
-      "INSERT INTO student_applications (name,phone,subjects,target,mode,region,note,status) VALUES (:name,:phone,:subjects,:target,:mode,:region,:note,'SUBMITTED')",
-      { name, phone: formatPhone(phone), subjects: JSON.stringify(subjects), target, mode, region, note }
+      "INSERT INTO student_applications (name,phone,subjects,target,mode,region,preferred_instructor_type,note,status) VALUES (:name,:phone,:subjects,:target,:mode,:region,:preferred_instructor_type,:note,'SUBMITTED')",
+      { name, phone: formatPhone(phone), subjects: JSON.stringify(subjects), target, mode, region, preferred_instructor_type: preferredInstructorType, note }
     );
     const id = r.insertId;
 
     // Admin notify logs
     await notifyAdminsByRoles(pool, ["SUPER_ADMIN","SUB_ADMIN","STUDENT_ADMIN"], "STUDENT_APPLICATION_CREATED", {
-      id, name, phone: formatPhone(phone), subjects, target, mode, region
+      id, name, phone: formatPhone(phone), subjects, target, mode, region, preferredInstructorType
     });
 
     ok(res, { studentApplication: { id } });
@@ -126,8 +135,10 @@ app.get("/api/v1/public/instructors", async (req,res)=>{
     const subject = mustStr(req.query?.subject) || null;
     const mode = mustStr(req.query?.mode) || null;
     const region = mustStr(req.query?.region) || null;
+    const instructorTypeRaw = mustStr(req.query?.instructorType) || mustStr(req.query?.instructor_type) || null;
+    const instructorType = (instructorTypeRaw && instructorTypeRaw.trim()) ? instructorTypeRaw.trim() : null;
 
-    let sql = "SELECT id,name,subjects,modes,region,education,career,major,age,gender,photo_url FROM instructors WHERE status='ACTIVE'";
+    let sql = "SELECT id,name,subjects,modes,region,instructor_type,education,career,major,age,gender,photo_url FROM instructors WHERE status='ACTIVE'";
     const params = {};
     if(region){
       sql += " AND (region IS NULL OR region='' OR region LIKE :regionLike)";
@@ -142,6 +153,10 @@ app.get("/api/v1/public/instructors", async (req,res)=>{
       sql += " AND JSON_CONTAINS(modes, JSON_QUOTE(:mode))";
       params.mode = mode;
     }
+    if(instructorType && instructorType !== "ANY"){
+      sql += " AND instructor_type = :instructorType";
+      params.instructorType = instructorType;
+    }
     sql += " ORDER BY id DESC LIMIT 50";
 
     const [rows] = await pool.query(sql, params);
@@ -151,6 +166,7 @@ app.get("/api/v1/public/instructors", async (req,res)=>{
       subjects: typeof r.subjects === "string" ? r.subjects : JSON.stringify(r.subjects),
       modes: typeof r.modes === "string" ? r.modes : JSON.stringify(r.modes),
       region: r.region,
+      instructor_type: r.instructor_type,
       education: r.education,
       career: r.career,
       major: r.major,
@@ -219,12 +235,18 @@ app.post("/api/v1/public/instructor-applications", upload.single("photo"), async
     const major = mustStr(req.body?.major) || null;
     const age = req.body?.age ? Number(req.body.age) : null;
     const gender = mustStr(req.body?.gender) || null;
+    const instructorTypeRaw2 = mustStr(req.body?.instructorType) || mustStr(req.body?.instructor_type) || null;
+    const instructorType2 = (instructorTypeRaw2 && instructorTypeRaw2.trim()) ? instructorTypeRaw2.trim() : null;
 
     if(!name) return bad(res,"INVALID_NAME","name required");
     if(!phone || !isValidPhone(phone)) return bad(res,"INVALID_PHONE","phone invalid");
     if(!email) return bad(res,"INVALID_EMAIL","email required");
     if(!subjects.length) return bad(res,"INVALID_SUBJECTS","subjects required");
     if(!modes.length) return bad(res,"INVALID_MODES","modes required");
+
+    if(instructorType2 && !["COLLEGE","EMPLOYEE","FREELANCER","FULLTIME_TUTOR","OTHER"].includes(instructorType2)){
+      return bad(res,"INVALID_INSTRUCTOR_TYPE","instructorType invalid");
+    }
 
     let photo_url = null;
     if(req.file){
@@ -241,7 +263,9 @@ app.post("/api/v1/public/instructor-applications", upload.single("photo"), async
         email,
         subjects: JSON.stringify(subjects),
         modes: JSON.stringify(modes),
-        region, education, career, major,
+        region,
+        instructor_type: instructorType2,
+        education, career, major,
         age: (Number.isFinite(age) ? age : null),
         gender: (gender && ["M","F","OTHER"].includes(gender) ? gender : null),
         photo_url
@@ -290,13 +314,13 @@ app.post("/api/v1/applications/enroll", async (req,res)=>{
     if(!subjects.length) return bad(res,"INVALID_SUBJECTS","subjects required");
 
     const [r] = await pool.query(
-      "INSERT INTO student_applications (name,phone,subjects,target,mode,region,note,status) VALUES (:name,:phone,:subjects,:target,:mode,:region,:note,'SUBMITTED')",
-      { name, phone: formatPhone(phone), subjects: JSON.stringify(subjects), target, mode, region, note }
+      "INSERT INTO student_applications (name,phone,subjects,target,mode,region,preferred_instructor_type,note,status) VALUES (:name,:phone,:subjects,:target,:mode,:region,:preferred_instructor_type,:note,'SUBMITTED')",
+      { name, phone: formatPhone(phone), subjects: JSON.stringify(subjects), target, mode, region, preferred_instructor_type: preferredInstructorType, note }
     );
     const id = r.insertId;
 
     await notifyAdminsByRoles(pool, ["SUPER_ADMIN","SUB_ADMIN","STUDENT_ADMIN"], "STUDENT_APPLICATION_CREATED", {
-      id, name, phone: formatPhone(phone), subjects, target, mode, region
+      id, name, phone: formatPhone(phone), subjects, target, mode, region, preferredInstructorType
     });
 
     ok(res, { id });
@@ -367,7 +391,7 @@ app.put("/api/v1/admin/instructor-applications/:id/review", requireAuth("ADMIN")
       await pool.query(
         "INSERT INTO instructors (name,phone,email,password_hash,subjects,modes,region,education,career,major,age,gender,photo_url,status) " +
         "VALUES (:name,:phone,:email,:hash,:subjects,:modes,:region,:education,:career,:major,:age,:gender,:photo_url,'ACTIVE') " +
-        "ON DUPLICATE KEY UPDATE name=VALUES(name), phone=VALUES(phone), subjects=VALUES(subjects), modes=VALUES(modes), region=VALUES(region), education=VALUES(education), career=VALUES(career), major=VALUES(major), age=VALUES(age), gender=VALUES(gender), photo_url=VALUES(photo_url), status='ACTIVE'",
+        "ON DUPLICATE KEY UPDATE name=VALUES(name), phone=VALUES(phone), subjects=VALUES(subjects), modes=VALUES(modes), region=VALUES(region), instructor_type=VALUES(instructor_type), education=VALUES(education), career=VALUES(career), major=VALUES(major), age=VALUES(age), gender=VALUES(gender), photo_url=VALUES(photo_url), status='ACTIVE'",
         {
           name: appRow.name,
           phone: appRow.phone,
@@ -376,6 +400,7 @@ app.put("/api/v1/admin/instructor-applications/:id/review", requireAuth("ADMIN")
           subjects: jsonStr(appRow.subjects),
           modes: jsonStr(appRow.modes),
           region: appRow.region,
+          instructor_type: appRow.instructor_type || null,
           education: appRow.education,
           career: appRow.career,
           major: appRow.major,
@@ -401,7 +426,7 @@ app.get("/api/v1/admin/student-applications", requireAuth("ADMIN"), async (req,r
     const [rows] = await pool.query("SELECT * FROM student_applications ORDER BY id DESC LIMIT 200");
     ok(res, { list: rows.map(r=>({
       id:r.id, name:r.name, phone:r.phone,
-      subjects: jsonStr(r.subjects), target:r.target, mode:r.mode, region:r.region, status:r.status,
+      subjects: jsonStr(r.subjects), target:r.target, mode:r.mode, region:r.region, preferred_instructor_type:r.preferred_instructor_type, status:r.status,
       selected_instructor_id:r.selected_instructor_id, created_at:r.created_at
     }))});
   }catch(e){

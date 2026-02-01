@@ -592,6 +592,33 @@
       setQuick([{label:"수지",value:"수지"},{label:"분당",value:"분당"},{label:"광교",value:"광교"},{label:"없음",value:"없음"}]);
       return;
     }
+
+    if(state.step==="instructorType"){
+      addMsg("bot","강사 유형을 선택해 주세요. (학생의 선호 유형과 매칭됩니다)");
+      setQuick([
+        {label:"대학생", value:"COLLEGE"},
+        {label:"재직자(현직)", value:"EMPLOYEE"},
+        {label:"전업강사", value:"FULLTIME_TUTOR"},
+        {label:"프리랜서", value:"FREELANCER"},
+        {label:"기타", value:"OTHER"}
+      ]);
+      return;
+    }
+
+    if(state.step==="instructorType"){
+      if(!["COLLEGE","EMPLOYEE","FULLTIME_TUTOR","FREELANCER","OTHER"].includes(t)){
+        addMsg("bot","아래 버튼으로 선택해 주세요.");
+        return;
+      }
+      state.answers.instructorType = t;
+      const label = { COLLEGE:"대학생", EMPLOYEE:"재직자(현직)", FULLTIME_TUTOR:"전업강사", FREELANCER:"프리랜서", OTHER:"기타" }[t] || t;
+      addMsg("me", label);
+      state.step="education";
+      ask();
+      return;
+    }
+
+
     if(state.step==="education"){
       addMsg("bot","학력/전공을 간단히 입력해 주세요. (예: OO대 컴퓨터공학)");
       setQuick([{label:"다음",value:"다음"}]);
@@ -618,6 +645,7 @@
       return;
     }
     if(state.step==="confirm"){
+      const typeLabel = { COLLEGE:"대학생", EMPLOYEE:"재직자(현직)", FULLTIME_TUTOR:"전업강사", FREELANCER:"프리랜서", OTHER:"기타" }[a.instructorType] || "-";
       const summary =
         "아래 내용으로 지원서를 제출할게요.\n" +
         "• 성함: " + a.name + "\n" +
@@ -626,6 +654,7 @@
         "• 과목: " + a.subjects.join(", ") + "\n" +
         "• 방식: " + a.modes.join(", ") + "\n" +
         "• 지역: " + (a.region || "-") + "\n" +
+        "• 강사유형: " + typeLabel + "\n" +
         "• 학력/전공: " + (a.education||"-") + "\n" +
         "• 경력: " + (a.career||"-") + "\n" +
         "• 나이: " + (a.age||"-") + "\n" +
@@ -652,6 +681,7 @@
     fd.append("subjects", JSON.stringify(a.subjects));
     fd.append("modes", JSON.stringify(a.modes));
     fd.append("region", a.region || "");
+    fd.append("instructorType", a.instructorType || "");
     fd.append("education", a.education || "");
     fd.append("career", a.career || "");
     if(a.age) fd.append("age", String(a.age));

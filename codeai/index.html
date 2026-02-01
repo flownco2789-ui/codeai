@@ -741,7 +741,7 @@
   const restartBtn = document.getElementById("codeaiChatRestart");
   if(!fab || !widget || !body || !quick || !input || !sendBtn || !closeBtn || !restartBtn) return;
 
-  let state = { step:"name", studentAppId:null, answers:{} };
+  let state = { step:"subjects", studentAppId:null, answers:{ prefType:"ANY" } };
 
   function el(tag, cls, text){
     const n = document.createElement(tag);
@@ -797,18 +797,15 @@
   }
 
   function ask(){
-    if(state.step === "name"){
-      addMsg("bot","안녕하세요! 학부모/학생 수강신청을 도와드릴게요. 먼저 신청자 성함을 알려주세요 🙂");
-      setQuick([]);
-      return;
-    }
-    if(state.step === "phone"){
-      addMsg("bot","연락 가능한 휴대폰 번호를 입력해 주세요. (예: 01012345678)");
-      setQuick([]);
-      return;
-    }
+    const a = state.answers || {};
+    const prefLabel = (v)=>{
+      const m = { ANY:"무관", COLLEGE:"대학생", EMPLOYEE:"재직자(현직)", FULLTIME_TUTOR:"전업강사", FREELANCER:"프리랜서", OTHER:"기타" };
+      return m[v] || v || "무관";
+    };
+
     if(state.step === "subjects"){
-      addMsg("bot","원하시는 과목을 입력해 주세요. (예: 파이썬, 웹개발, C++, 알고리즘)");
+      addMsg("bot","안녕하세요! 학부모/학생 수강신청을 도와드릴게요 🙂
+먼저 원하시는 과목을 입력해 주세요. (예: 파이썬, 웹개발, C++, 알고리즘)");
       setQuick([{label:"파이썬",value:"파이썬"},{label:"웹개발",value:"웹개발"},{label:"알고리즘",value:"알고리즘"}]);
       return;
     }
@@ -831,15 +828,43 @@
       setQuick([{label:"수지",value:"수지"},{label:"분당",value:"분당"},{label:"광교",value:"광교"}]);
       return;
     }
+    if(state.step === "prefType"){
+      addMsg("bot","선호하는 강사 유형을 선택해 주세요. (매칭에 반영됩니다)");
+      setQuick([
+        {label:"무관", value:"ANY"},
+        {label:"대학생", value:"COLLEGE"},
+        {label:"재직자(현직)", value:"EMPLOYEE"},
+        {label:"전업강사", value:"FULLTIME_TUTOR"},
+        {label:"프리랜서", value:"FREELANCER"},
+        {label:"기타", value:"OTHER"}
+      ]);
+      return;
+    }
+    if(state.step === "name"){
+      addMsg("bot","마지막 단계예요! 신청자 성함을 알려주세요 🙂");
+      setQuick([]);
+      return;
+    }
+    if(state.step === "phone"){
+      addMsg("bot","연락 가능한 휴대폰 번호를 입력해 주세요. (예: 01012345678)");
+      setQuick([]);
+      return;
+    }
     if(state.step === "confirm"){
-      const a = state.answers;
       const summary =
-        "아래 내용으로 신청할게요." +
-        "• 성함: " + a.name + "" +
-        "• 연락처: " + a.phone + "" +
-        "• 과목: " + a.subjects.join(", ") + "" +
-        "• 목적: " + (a.target||"-") + "" +
-        "• 방식: " + a.mode + (a.region ? (" / " + a.region) : "");
+        "아래 내용으로 신청할게요.
+" +
+        "• 과목: " + (a.subjects ? a.subjects.join(", ") : "-") + "
+" +
+        "• 목적: " + (a.target||"-") + "
+" +
+        "• 방식: " + (a.mode === "ZOOM" ? "줌(전국)" : (a.mode === "OFFLINE_1_1" ? "오프라인 1:1" : "오프라인 그룹")) + (a.region ? (" / " + a.region) : "") + "
+" +
+        "• 선호 강사: " + prefLabel(a.prefType) + "
+" +
+        "• 성함: " + (a.name||"-") + "
+" +
+        "• 연락처: " + (a.phone||"-");
       addMsg("bot", summary);
       addMsg("bot","맞으면 '신청하기'라고 입력해 주세요. 수정하려면 '처음'이라고 입력해 주세요.");
       setQuick([{label:"신청하기",value:"신청하기"},{label:"처음",value:"처음"}]);
@@ -860,11 +885,8 @@
           <button class="btn btn-sm btn-outline-secondary" id="restartNow">다시 신청</button>
         </div>`;
       addBotNode(box);
-      setTimeout(()=>{
-        const b = document.getElementById("restartNow");
-        if(b) b.addEventListener("click", reset);
-      }, 0);
-      setQuick([]);
+      const btn = box.querySelector("#restartNow");
+      if(btn) btn.addEventListener("click", ()=>reset());
       return;
     }
   }
@@ -874,7 +896,10 @@
     const qs = new URLSearchParams();
     if(a.subjects && a.subjects[0]) qs.set("subject", a.subjects[0]); // MVP: 첫 과목 기반
     if(a.mode) qs.set("mode", a.mode);
-    if(a.region) qs.set("region", a.region);
+    // 오프라인만 지역 매칭
+    if(a.mode && a.mode !== "ZOOM" && a.region) qs.set("region", a.region);
+    // 선호 강사 유형(무관 제외)
+    if(a.prefType && a.prefType !== "ANY") qs.set("instructorType", a.prefType);
 
     let out;
     try{
@@ -941,6 +966,7 @@
       target: a.target,
       mode: a.mode,
       region: a.region || null,
+      preferredInstructorType: a.prefType || "ANY",
       note: null
     });
     state.studentAppId = out.studentApplication && out.studentApplication.id;
@@ -954,27 +980,6 @@
 
     if(t === "처음"){
       reset();
-      return;
-    }
-
-    if(state.step === "name"){
-      state.answers.name = t;
-      addMsg("me", t);
-      state.step = "phone";
-      ask();
-      return;
-    }
-
-    if(state.step === "phone"){
-      const p = normPhone(t);
-      if(p.length < 10){
-        addMsg("bot","휴대폰 번호가 올바르지 않아요. 다시 입력해 주세요.");
-        return;
-      }
-      state.answers.phone = p;
-      addMsg("me", t);
-      state.step = "subjects";
-      ask();
       return;
     }
 
@@ -1008,7 +1013,7 @@
       addMsg("me", t === "ZOOM" ? "줌(전국)" : (t === "OFFLINE_1_1" ? "오프라인 1:1" : "오프라인 그룹"));
       if(t === "ZOOM"){
         state.answers.region = null;
-        state.step = "confirm";
+        state.step = "prefType";
       }else{
         state.step = "region";
       }
@@ -1018,6 +1023,43 @@
 
     if(state.step === "region"){
       state.answers.region = t;
+      addMsg("me", t);
+      state.step = "prefType";
+      ask();
+      return;
+    }
+
+    if(state.step === "prefType"){
+      if(!["ANY","COLLEGE","EMPLOYEE","FULLTIME_TUTOR","FREELANCER","OTHER"].includes(t)){
+        addMsg("bot","아래 버튼으로 선택해 주세요.");
+        return;
+      }
+      state.answers.prefType = t;
+      const label = (v)=>{
+        const m = { ANY:"무관", COLLEGE:"대학생", EMPLOYEE:"재직자(현직)", FULLTIME_TUTOR:"전업강사", FREELANCER:"프리랜서", OTHER:"기타" };
+        return m[v] || v;
+      };
+      addMsg("me", label(t));
+      state.step = "name";
+      ask();
+      return;
+    }
+
+    if(state.step === "name"){
+      state.answers.name = t;
+      addMsg("me", t);
+      state.step = "phone";
+      ask();
+      return;
+    }
+
+    if(state.step === "phone"){
+      const p = normPhone(t);
+      if(p.length < 10){
+        addMsg("bot","휴대폰 번호가 올바르지 않아요. 다시 입력해 주세요.");
+        return;
+      }
+      state.answers.phone = p;
       addMsg("me", t);
       state.step = "confirm";
       ask();
@@ -1032,7 +1074,7 @@
         try{
           await submitStudentApplication();
         }catch(e){
-          addMsg("bot","신청 실패: " + e.message + "잠시 후 다시 시도해 주세요.");
+          addMsg("bot","신청 실패: " + e.message + " 잠시 후 다시 시도해 주세요.");
           state.step = "confirm";
           ask();
         }
@@ -1045,7 +1087,7 @@
 
   function reset(){
     body.innerHTML = "";
-    state = { step:"name", studentAppId:null, answers:{} };
+    state = { step:"subjects", studentAppId:null, answers:{ prefType:"ANY" } };
     input.value = "";
     setQuick([]);
     ask();
