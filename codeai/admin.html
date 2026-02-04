@@ -13,14 +13,17 @@
     .muted { color:#6c757d; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
     .smallbtn { padding:.25rem .5rem; font-size:.85rem; }
+    .tabpane { padding-top: 1rem; }
+    .row-actions button { margin-right:.25rem; margin-bottom:.25rem; }
+    .kv { display:grid; grid-template-columns: 120px 1fr; gap:.25rem .75rem; }
   </style>
 </head>
 <body>
   <div class="container py-4">
     <div class="d-flex align-items-center justify-content-between mb-3">
       <div>
-        <h3 class="mb-1">관리자 페이지</h3>
-        <div class="muted">강사 검수 / 수강관리 / 결제완료 처리 / 리포트 검수</div>
+        <h3 class="mb-1">관리자 페이지 (A안)</h3>
+        <div class="muted">검색/배정 · 메인강사 · 학부모코드 로그/재발급 · 주간 학습보고서 검수</div>
       </div>
       <div class="text-end">
         <a href="index.html" class="btn btn-sm btn-outline-secondary">홈으로</a>
@@ -31,36 +34,35 @@
       <div class="row g-2 align-items-end">
         <div class="col-md-5">
           <label class="form-label">이메일</label>
-          <input id="email" class="form-control" placeholder="superadmin@codeai.co.kr">
+          <input id="email" class="form-control" placeholder="superadmin@codeai.co.kr" />
         </div>
         <div class="col-md-5">
           <label class="form-label">비밀번호</label>
-          <input id="password" type="password" class="form-control" placeholder="admin1234!">
+          <input id="password" class="form-control" type="password" placeholder="admin1234!" />
         </div>
-        <div class="col-md-2">
-          <button id="loginBtn" class="btn btn-primary w-100">로그인</button>
+        <div class="col-md-2 d-grid">
+          <button id="btnLogin" class="btn btn-primary">로그인</button>
         </div>
       </div>
-      <div id="loginMsg" class="small mt-2 muted"></div>
+      <div id="loginMsg" class="small muted mt-2"></div>
     </div>
 
-    <div id="app" class="d-none">
-      <div class="d-flex justify-content-between mb-2">
-        <div class="muted small">※ 운영 서버에서만 접근하도록 IP 제한/방화벽 권장</div>
-        <button id="logoutBtn" class="btn btn-sm btn-outline-secondary">로그아웃</button>
-      </div>
-
-      <ul class="nav nav-tabs mb-3" role="tablist">
-        <li class="nav-item"><button class="nav-link active" data-tab="instApps">강사 신청</button></li>
-        <li class="nav-item"><button class="nav-link" data-tab="students">학생 신청</button></li>
-        <li class="nav-item"><button class="nav-link" data-tab="enrollments">수강(Enrollment)</button></li>
-        <li class="nav-item"><button class="nav-link" data-tab="reports">리포트 검수</button></li>
+    <div id="app" class="card p-3 d-none">
+      <ul class="nav nav-pills gap-2">
+        <li class="nav-item"><button class="nav-link active" data-tab="enrollments">수강/배정</button></li>
+        <li class="nav-item"><button class="nav-link" data-tab="instructors">강사</button></li>
+        <li class="nav-item"><button class="nav-link" data-tab="weekly">주간보고서</button></li>
+        <li class="nav-item"><button class="nav-link" data-tab="reports">기존리포트</button></li>
+        <li class="nav-item"><button class="nav-link" data-tab="instApps">강사지원</button></li>
+        <li class="nav-item"><button class="nav-link" data-tab="students">학생신청</button></li>
       </ul>
 
-      <div id="tab-instApps" class="tabpane"></div>
-      <div id="tab-students" class="tabpane d-none"></div>
-      <div id="tab-enrollments" class="tabpane d-none"></div>
+      <div id="tab-enrollments" class="tabpane"></div>
+      <div id="tab-instructors" class="tabpane d-none"></div>
+      <div id="tab-weekly" class="tabpane d-none"></div>
       <div id="tab-reports" class="tabpane d-none"></div>
+      <div id="tab-instApps" class="tabpane d-none"></div>
+      <div id="tab-students" class="tabpane d-none"></div>
     </div>
   </div>
 
@@ -68,16 +70,29 @@
 (function(){
   const $ = (id)=>document.getElementById(id);
   const TOKEN_KEY = "codeai_admin_token";
-  function esc(s){ return String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;"); }
+  const esc = (s)=>String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
 
-  function showTab(name){
-    ["instApps","students","enrollments","reports"].forEach(t=>{
-      $("tab-" + t).classList.add("d-none");
+  function setActiveTab(name){
+    ["enrollments","instructors","weekly","reports","instApps","students"].forEach(t=>{
+      $("tab-"+t).classList.add("d-none");
       document.querySelector(`button[data-tab="${t}"]`).classList.remove("active");
     });
-    $("tab-" + name).classList.remove("d-none");
+    $("tab-"+name).classList.remove("d-none");
     document.querySelector(`button[data-tab="${name}"]`).classList.add("active");
   }
+
+  document.querySelectorAll("button[data-tab]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const name = btn.getAttribute("data-tab");
+      setActiveTab(name);
+      if(name==="enrollments") loadEnrollments();
+      if(name==="instructors") loadInstructors();
+      if(name==="weekly") loadWeekly();
+      if(name==="reports") loadReports();
+      if(name==="instApps") loadInstructorApps();
+      if(name==="students") loadStudents();
+    });
+  });
 
   async function login(){
     $("loginMsg").textContent = "로그인 중…";
@@ -89,238 +104,541 @@
       localStorage.setItem(TOKEN_KEY, out.token);
       $("loginCard").classList.add("d-none");
       $("app").classList.remove("d-none");
-      await refreshAll();
       $("loginMsg").textContent = "";
+      await loadEnrollments();
     }catch(e){
       $("loginMsg").textContent = "로그인 실패: " + e.message;
     }
   }
+  $("btnLogin").addEventListener("click", login);
 
-  async function refreshAll(){
-    await loadInstructorApps();
-    await loadStudents();
-    await loadEnrollments();
-    await loadReports();
-  }
-
-  async function loadInstructorApps(){
-    const out = await CodeAI.authRequest("/api/v1/admin/instructor-applications", TOKEN_KEY, { method:"GET" });
-    const list = out.list || [];
-    const wrap = $("tab-instApps");
-    wrap.innerHTML = "";
-    if(!list.length){
-      wrap.innerHTML = "<div class='card p-3 muted'>대기 중인 강사 신청이 없습니다.</div>";
-      return;
-    }
-    list.forEach(x=>{
-      const card = document.createElement("div");
-      card.className = "card p-3 mb-3";
-      card.innerHTML = `
-        <div class="d-flex justify-content-between align-items-start">
-          <div>
-            <div class="h6 mb-1">#${x.id} <span class="badge text-bg-warning">${esc(x.status)}</span></div>
-            <div class="muted small">이름: ${esc(x.name)} · ${esc(x.phone)} · ${esc(x.email)}</div>
-            <div class="muted small">과목: ${esc(x.subjects)} · 방식: ${esc(x.modes)} · 지역: ${esc(x.region||"-")}</div>
-            <div class="muted small">학력: ${esc(x.education||"-")} · 경력: ${esc(x.career||"-")}</div>
-            ${x.photo_url ? `<div class="mt-2"><img src="${esc(x.photo_url)}" style="max-width:180px;border-radius:12px;border:1px solid rgba(0,0,0,.08);"></div>` : ""}
-          </div>
-          <div class="text-end">
-            <button class="btn btn-sm btn-success smallbtn" data-approve="${x.id}">승인</button>
-            <button class="btn btn-sm btn-outline-danger smallbtn" data-reject="${x.id}">반려</button>
-          </div>
-        </div>
-      `;
-      wrap.appendChild(card);
-    });
-
-    wrap.querySelectorAll("[data-approve]").forEach(btn=>{
-      btn.addEventListener("click", async ()=>{
-        const id = btn.getAttribute("data-approve");
-        const note = prompt("승인 메모(선택)");
-        const out = await CodeAI.authRequest(`/api/v1/admin/instructor-applications/${id}/review`, TOKEN_KEY, {
-          method:"PUT",
-          body: JSON.stringify({ status:"APPROVED", note: note || null })
-        });
-        alert("승인 완료. 강사 임시비밀번호: " + out.tempPassword);
-        refreshAll();
-      });
-    });
-
-    wrap.querySelectorAll("[data-reject]").forEach(btn=>{
-      btn.addEventListener("click", async ()=>{
-        const id = btn.getAttribute("data-reject");
-        const note = prompt("반려 사유(필수)");
-        if(!note) return;
-        await CodeAI.authRequest(`/api/v1/admin/instructor-applications/${id}/review`, TOKEN_KEY, {
-          method:"PUT",
-          body: JSON.stringify({ status:"REJECTED", note })
-        });
-        alert("반려 처리되었습니다.");
-        refreshAll();
-      });
-    });
-  }
-
-  async function loadStudents(){
-    const out = await CodeAI.authRequest("/api/v1/admin/student-applications", TOKEN_KEY, { method:"GET" });
-    const list = out.list || [];
-    const wrap = $("tab-students");
-    wrap.innerHTML = "";
-    if(!list.length){
-      wrap.innerHTML = "<div class='card p-3 muted'>학생 신청이 없습니다.</div>";
-      return;
-    }
-    list.forEach(x=>{
-      const card = document.createElement("div");
-      card.className = "card p-3 mb-3";
-      card.innerHTML = `
-        <div class="d-flex justify-content-between align-items-start">
-          <div>
-            <div class="h6 mb-1">#${x.id} <span class="badge text-bg-primary">${esc(x.status)}</span></div>
-            <div class="muted small">이름: ${esc(x.name)} · ${esc(x.phone)}</div>
-            <div class="muted small">과목: ${esc(x.subjects)} · 목적: ${esc(x.target||"-")}</div>
-            <div class="muted small">방식: ${esc(x.mode)} ${x.region ? "· " + esc(x.region) : ""}</div>
-          </div>
-          <div class="text-end muted small">선택 강사ID: ${esc(x.selected_instructor_id||"-")}</div>
-        </div>
-      `;
-      wrap.appendChild(card);
-    });
-  }
-
+  // ---------- Enrollments / Assign / Portal code ----------
   async function loadEnrollments(){
-    const out = await CodeAI.authRequest("/api/v1/admin/enrollments", TOKEN_KEY, { method:"GET" });
-    const list = out.list || [];
     const wrap = $("tab-enrollments");
-    wrap.innerHTML = "";
-    if(!list.length){
-      wrap.innerHTML = "<div class='card p-3 muted'>수강 정보가 없습니다.</div>";
-      return;
-    }
-    list.forEach(x=>{
-      const card = document.createElement("div");
-      card.className = "card p-3 mb-3";
-      card.innerHTML = `
-        <div class="d-flex justify-content-between align-items-start">
-          <div>
-            <div class="h6 mb-1">#${x.id} <span class="badge text-bg-secondary">${esc(x.status)}</span></div>
-            <div class="muted small">학생: ${esc(x.student_name)} · ${esc(x.student_phone)}</div>
-            <div class="muted small">강사: ${esc(x.instructor_name)} · ${esc(x.instructor_email)}</div>
-            <div class="muted small">기간: ${esc(x.start_date||"-")} ~ ${esc(x.end_date||"-")}</div>
-          </div>
-          <div class="text-end">
-            <button class="btn btn-sm btn-outline-primary smallbtn" data-period="${x.id}">기간 입력</button>
-            <button class="btn btn-sm btn-success smallbtn" data-paid="${x.id}">결제완료 처리</button>
-          </div>
+    wrap.innerHTML = `
+      <div class="d-flex gap-2 align-items-end mb-2">
+        <div class="flex-grow-1">
+          <label class="form-label mb-1">통합검색(학생/전화/강사/이메일)</label>
+          <input id="enrSearch" class="form-control" placeholder="예) 학생01, 010, teacher01, 강사" />
         </div>
-        <div class="small muted mt-2">※ 결제완료 처리 시 학부모 포털 접속코드가 발급됩니다.</div>
-      `;
-      wrap.appendChild(card);
+        <div>
+          <button id="btnEnrSearch" class="btn btn-outline-primary">검색</button>
+        </div>
+      </div>
+      <div id="enrMsg" class="small muted mb-2"></div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr class="muted">
+              <th style="width:70px">ID</th>
+              <th>학생</th>
+              <th>강사</th>
+              <th style="width:120px">상태</th>
+              <th style="width:160px">학부모코드</th>
+              <th style="width:260px">액션</th>
+            </tr>
+          </thead>
+          <tbody id="enrBody"></tbody>
+        </table>
+      </div>
+    `;
+    const searchInput = document.getElementById("enrSearch");
+    const run = async ()=>{
+      const q = searchInput.value.trim();
+      document.getElementById("enrMsg").textContent = "불러오는 중…";
+      try{
+        const out = await CodeAI.authRequest("/api/v1/admin/enrollments" + (q ? ("?search="+encodeURIComponent(q)) : ""), TOKEN_KEY, { method:"GET" });
+        const list = out.list || [];
+        const tb = document.getElementById("enrBody");
+        tb.innerHTML = list.map(r=>{
+          const issued = r.last_code_issued_at ? new Date(r.last_code_issued_at).toLocaleString() : "-";
+          return `
+            <tr data-eid="${r.id}">
+              <td class="mono">${r.id}</td>
+              <td>
+                <div><b>${esc(r.student_name)}</b></div>
+                <div class="small muted mono">${esc(r.student_phone || "")}</div>
+              </td>
+              <td>
+                <div><b>${esc(r.instructor_name)}</b> ${r.is_featured ? '<span class="badge text-bg-warning">메인</span>' : ''}</div>
+                <div class="small muted mono">${esc(r.instructor_email || "")}</div>
+              </td>
+              <td><span class="badge text-bg-secondary">${esc(r.status)}</span></td>
+              <td class="small">
+                <div class="muted">최근 발급</div>
+                <div class="mono">${esc(issued)}</div>
+              </td>
+              <td class="row-actions">
+                <button class="btn btn-sm btn-outline-secondary smallbtn" data-act="assign">강사배정</button>
+                <button class="btn btn-sm btn-outline-primary smallbtn" data-act="logs">코드 다시보기(로그)</button>
+                <button class="btn btn-sm btn-primary smallbtn" data-act="reissue">코드 재발급</button>
+              </td>
+            </tr>
+            <tr class="d-none" data-panel="${r.id}">
+              <td colspan="6">
+                <div class="card p-2">
+                  <div class="small muted">패널</div>
+                  <div id="panel-${r.id}"></div>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join("");
+        document.getElementById("enrMsg").textContent = `총 ${list.length}건`;
+      }catch(e){
+        document.getElementById("enrMsg").textContent = "오류: " + e.message;
+      }
+    };
+
+    document.getElementById("btnEnrSearch").addEventListener("click", run);
+    searchInput.addEventListener("keydown", (e)=>{ if(e.key==="Enter") run(); });
+    await run();
+
+    wrap.addEventListener("click", async (e)=>{
+      const btn = e.target.closest("button[data-act]");
+      if(!btn) return;
+      const tr = e.target.closest("tr[data-eid]");
+      if(!tr) return;
+      const eid = tr.getAttribute("data-eid");
+      const act = btn.getAttribute("data-act");
+      const panelRow = wrap.querySelector(`tr[data-panel="${eid}"]`);
+      const panel = document.getElementById("panel-" + eid);
+
+      panelRow.classList.remove("d-none");
+      panel.innerHTML = "불러오는 중…";
+
+      if(act==="logs"){
+        try{
+          const out = await CodeAI.authRequest(`/api/v1/admin/enrollments/${eid}/portal-code/logs`, TOKEN_KEY, { method:"GET" });
+          const logs = out.logs || [];
+          panel.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div><b>학부모코드 로그</b> <span class="muted small">(ISSUE에만 원본 코드가 저장됩니다)</span></div>
+              <button class="btn btn-sm btn-outline-secondary smallbtn" data-close="${eid}">닫기</button>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead><tr class="muted"><th>시간</th><th>타입</th><th>코드(원본)</th><th>Actor</th></tr></thead>
+                <tbody>
+                  ${logs.map(l=>`
+                    <tr>
+                      <td class="small mono">${esc(new Date(l.created_at).toLocaleString())}</td>
+                      <td><span class="badge text-bg-${l.event_type==='ISSUE'?'primary':'secondary'}">${esc(l.event_type)}</span></td>
+                      <td class="mono">${l.event_type==='ISSUE' ? esc(l.code_value||"-") : "-"}</td>
+                      <td class="small">${esc(l.actor_role||"")}</td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            </div>
+          `;
+        }catch(err){
+          panel.innerHTML = "오류: " + err.message;
+        }
+      }
+
+      if(act==="reissue"){
+        try{
+          const out = await CodeAI.authRequest(`/api/v1/admin/enrollments/${eid}/portal-code/reissue`, TOKEN_KEY, { method:"POST", body: "{}" });
+          panel.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div><b>재발급 완료</b></div>
+              <button class="btn btn-sm btn-outline-secondary smallbtn" data-close="${eid}">닫기</button>
+            </div>
+            <div class="kv">
+              <div class="muted">새 코드</div><div class="mono"><b>${esc(out.code)}</b></div>
+              <div class="muted">만료</div><div class="mono">${esc(out.expires_at)}</div>
+            </div>
+            <div class="small muted mt-2">※ 이 코드는 ISSUE 로그에도 저장되어 “다시보기”가 가능합니다.</div>
+          `;
+          await loadEnrollments();
+        }catch(err){
+          panel.innerHTML = "오류: " + err.message;
+        }
+      }
+
+      if(act==="assign"){
+        try{
+          const out = await CodeAI.authRequest(`/api/v1/admin/instructors`, TOKEN_KEY, { method:"GET" });
+          const list = out.instructors || [];
+          panel.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div><b>강사 배정/변경</b></div>
+              <button class="btn btn-sm btn-outline-secondary smallbtn" data-close="${eid}">닫기</button>
+            </div>
+            <div class="row g-2 align-items-end">
+              <div class="col-md-6">
+                <label class="form-label mb-1">강사 검색</label>
+                <input class="form-control" id="assignSearch-${eid}" placeholder="이름/이메일/전화" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label mb-1">강사 선택</label>
+                <select class="form-select" id="assignSel-${eid}">
+                  ${list.map(i=>`<option value="${i.id}">${esc(i.name)} ${i.is_featured ? "[메인]" : ""} (${esc(i.email||"")})</option>`).join("")}
+                </select>
+              </div>
+              <div class="col-md-12 d-grid">
+                <button class="btn btn-primary" id="assignBtn-${eid}">이 강사로 배정</button>
+              </div>
+            </div>
+            <div class="small muted mt-2" id="assignMsg-${eid}"></div>
+          `;
+          const sel = document.getElementById(`assignSel-${eid}`);
+          const sInput = document.getElementById(`assignSearch-${eid}`);
+          sInput.addEventListener("input", async ()=>{
+            const q = sInput.value.trim();
+            const o2 = await CodeAI.authRequest(`/api/v1/admin/instructors` + (q ? ("?search="+encodeURIComponent(q)) : ""), TOKEN_KEY, { method:"GET" });
+            const l2 = o2.instructors || [];
+            sel.innerHTML = l2.map(i=>`<option value="${i.id}">${esc(i.name)} ${i.is_featured ? "[메인]" : ""} (${esc(i.email||"")})</option>`).join("");
+          });
+          document.getElementById(`assignBtn-${eid}`).addEventListener("click", async ()=>{
+            document.getElementById(`assignMsg-${eid}`).textContent = "배정 중…";
+            try{
+              await CodeAI.authRequest(`/api/v1/admin/enrollments/${eid}/assign-instructor`, TOKEN_KEY, {
+                method:"POST",
+                body: JSON.stringify({ instructorId: Number(sel.value) })
+              });
+              document.getElementById(`assignMsg-${eid}`).textContent = "완료";
+              await loadEnrollments();
+            }catch(err){
+              document.getElementById(`assignMsg-${eid}`).textContent = "오류: " + err.message;
+            }
+          });
+        }catch(err){
+          panel.innerHTML = "오류: " + err.message;
+        }
+      }
     });
 
-    wrap.querySelectorAll("[data-period]").forEach(btn=>{
-      btn.addEventListener("click", async ()=>{
-        const id = btn.getAttribute("data-period");
-        const start = prompt("수강 시작일 (YYYY-MM-DD)");
-        const end = prompt("수강 종료일 (YYYY-MM-DD)");
-        if(!start || !end) return;
-        await CodeAI.authRequest(`/api/v1/admin/enrollments/${id}/set-period`, TOKEN_KEY, {
-          method:"PUT",
-          body: JSON.stringify({ startDate:start, endDate:end })
-        });
-        alert("기간이 저장되었습니다.");
-        loadEnrollments();
-      });
-    });
-
-    wrap.querySelectorAll("[data-paid]").forEach(btn=>{
-      btn.addEventListener("click", async ()=>{
-        const id = btn.getAttribute("data-paid");
-        const ok = confirm("결제완료 처리하시겠습니까? (포털코드 발급)");
-        if(!ok) return;
-        const out = await CodeAI.authRequest(`/api/v1/admin/enrollments/${id}/mark-paid`, TOKEN_KEY, { method:"POST" });
-        alert("결제완료 처리됨. 포털코드: " + out.portalCode + "\n(현재는 알림로그만 기록됩니다)");
-        loadEnrollments();
-      });
+    wrap.addEventListener("click", (e)=>{
+      const c = e.target.closest("button[data-close]");
+      if(!c) return;
+      const eid = c.getAttribute("data-close");
+      const panelRow = wrap.querySelector(`tr[data-panel="${eid}"]`);
+      if(panelRow) panelRow.classList.add("d-none");
     });
   }
 
+  // ---------- Instructors (search + featured toggle) ----------
+  async function loadInstructors(){
+    const wrap = $("tab-instructors");
+    wrap.innerHTML = `
+      <div class="d-flex gap-2 align-items-end mb-2">
+        <div class="flex-grow-1">
+          <label class="form-label mb-1">통합검색(이름/이메일/전화)</label>
+          <input id="insSearch" class="form-control" placeholder="예) 강사01, teacher01, 010" />
+        </div>
+        <div><button id="btnInsSearch" class="btn btn-outline-primary">검색</button></div>
+      </div>
+      <div id="insMsg" class="small muted mb-2"></div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead><tr class="muted"><th>ID</th><th>강사</th><th>타입</th><th>메인</th><th>액션</th></tr></thead>
+          <tbody id="insBody"></tbody>
+        </table>
+      </div>
+    `;
+    const run = async ()=>{
+      const q = document.getElementById("insSearch").value.trim();
+      document.getElementById("insMsg").textContent = "불러오는 중…";
+      try{
+        const out = await CodeAI.authRequest(`/api/v1/admin/instructors` + (q ? ("?search="+encodeURIComponent(q)) : ""), TOKEN_KEY, { method:"GET" });
+        const list = out.instructors || [];
+        document.getElementById("insBody").innerHTML = list.map(i=>`
+          <tr>
+            <td class="mono">${i.id}</td>
+            <td>
+              <div><b>${esc(i.name)}</b></div>
+              <div class="small muted mono">${esc(i.email||"")}</div>
+            </td>
+            <td class="small">${esc(i.instructor_type||"-")}</td>
+            <td>
+              <input type="checkbox" class="form-check-input" data-feature-id="${i.id}" ${i.is_featured ? "checked" : ""} />
+            </td>
+            <td class="row-actions">
+              <button class="btn btn-sm btn-outline-secondary smallbtn" data-copy="${esc(i.email||"")}">이메일 복사</button>
+            </td>
+          </tr>
+        `).join("");
+        document.getElementById("insMsg").textContent = `총 ${list.length}명`;
+      }catch(e){
+        document.getElementById("insMsg").textContent = "오류: " + e.message;
+      }
+    };
+    document.getElementById("btnInsSearch").addEventListener("click", run);
+    document.getElementById("insSearch").addEventListener("keydown", (e)=>{ if(e.key==="Enter") run(); });
+    wrap.addEventListener("change", async (e)=>{
+      const cb = e.target.closest("input[data-feature-id]");
+      if(!cb) return;
+      const id = cb.getAttribute("data-feature-id");
+      try{
+        await CodeAI.authRequest(`/api/v1/admin/instructors/${id}/feature`, TOKEN_KEY, {
+          method:"PUT",
+          body: JSON.stringify({ isFeatured: cb.checked ? 1 : 0 })
+        });
+      }catch(err){
+        alert("저장 실패: " + err.message);
+        cb.checked = !cb.checked;
+      }
+    });
+    wrap.addEventListener("click", (e)=>{
+      const btn = e.target.closest("button[data-copy]");
+      if(!btn) return;
+      navigator.clipboard.writeText(btn.getAttribute("data-copy") || "");
+      btn.textContent = "복사됨";
+      setTimeout(()=>btn.textContent="이메일 복사", 800);
+    });
+    await run();
+  }
+
+  // ---------- Weekly reports admin review ----------
+  async function loadWeekly(){
+    const wrap = $("tab-weekly");
+    wrap.innerHTML = `
+      <div class="row g-2 align-items-end mb-2">
+        <div class="col-md-3">
+          <label class="form-label mb-1">상태</label>
+          <select id="wrStatus" class="form-select">
+            <option value="">전체</option>
+            <option value="PENDING">대기</option>
+            <option value="APPROVED">승인</option>
+            <option value="REJECTED">반려</option>
+          </select>
+        </div>
+        <div class="col-md-7">
+          <label class="form-label mb-1">검색(학생/전화/강사)</label>
+          <input id="wrSearch" class="form-control" placeholder="예) 학생, 010, 강사01" />
+        </div>
+        <div class="col-md-2 d-grid">
+          <button id="btnWrSearch" class="btn btn-outline-primary">조회</button>
+        </div>
+      </div>
+      <div id="wrMsg" class="small muted mb-2"></div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead><tr class="muted"><th>주차</th><th>학생</th><th>강사</th><th>요약</th><th>상태</th><th>액션</th></tr></thead>
+          <tbody id="wrBody"></tbody>
+        </table>
+      </div>
+    `;
+    const run = async ()=>{
+      const st = document.getElementById("wrStatus").value;
+      const q = document.getElementById("wrSearch").value.trim();
+      document.getElementById("wrMsg").textContent = "불러오는 중…";
+      try{
+        const qs = [];
+        if(st) qs.push("status="+encodeURIComponent(st));
+        if(q) qs.push("search="+encodeURIComponent(q));
+        const out = await CodeAI.authRequest(`/api/v1/admin/weekly-reports` + (qs.length ? ("?"+qs.join("&")) : ""), TOKEN_KEY, { method:"GET" });
+        const list = out.list || [];
+        document.getElementById("wrBody").innerHTML = list.map(r=>{
+          const metrics = r.metrics_json ? (typeof r.metrics_json === "string" ? JSON.parse(r.metrics_json) : r.metrics_json) : null;
+          const line = metrics ? `출석:${metrics.attendance||"-"} 숙제:${metrics.homework_done||"-"} 집중:${metrics.focus||"-"}` : "-";
+          return `
+            <tr>
+              <td class="mono">${esc(r.week_start_date)}</td>
+              <td>
+                <div><b>${esc(r.student_name)}</b></div>
+                <div class="small muted mono">${esc(r.student_phone||"")}</div>
+              </td>
+              <td>${esc(r.instructor_name||"")}</td>
+              <td class="small">${esc(line)}</td>
+              <td><span class="badge text-bg-${r.admin_status==='APPROVED'?'success':(r.admin_status==='REJECTED'?'danger':'secondary')}">${esc(r.admin_status)}</span></td>
+              <td class="row-actions">
+                <button class="btn btn-sm btn-outline-secondary smallbtn" data-view="${r.id}">보기</button>
+                <button class="btn btn-sm btn-success smallbtn" data-approve="${r.id}">승인</button>
+                <button class="btn btn-sm btn-danger smallbtn" data-reject="${r.id}">반려</button>
+              </td>
+            </tr>
+            <tr class="d-none" data-wrpanel="${r.id}">
+              <td colspan="6">
+                <div class="card p-2">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div><b>상세</b></div>
+                    <button class="btn btn-sm btn-outline-secondary smallbtn" data-wrclose="${r.id}">닫기</button>
+                  </div>
+                  <pre class="small mt-2 mb-0" style="white-space:pre-wrap;">${esc(JSON.stringify(r, null, 2))}</pre>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join("");
+        document.getElementById("wrMsg").textContent = `총 ${list.length}건`;
+      }catch(e){
+        document.getElementById("wrMsg").textContent = "오류: " + e.message;
+      }
+    };
+    document.getElementById("btnWrSearch").addEventListener("click", run);
+    document.getElementById("wrSearch").addEventListener("keydown", (e)=>{ if(e.key==="Enter") run(); });
+    wrap.addEventListener("click", async (e)=>{
+      const view = e.target.closest("button[data-view]");
+      const close = e.target.closest("button[data-wrclose]");
+      const ap = e.target.closest("button[data-approve]");
+      const rj = e.target.closest("button[data-reject]");
+
+      if(view){
+        const id = view.getAttribute("data-view");
+        const row = wrap.querySelector(`tr[data-wrpanel="${id}"]`);
+        if(row) row.classList.remove("d-none");
+        return;
+      }
+      if(close){
+        const id = close.getAttribute("data-wrclose");
+        const row = wrap.querySelector(`tr[data-wrpanel="${id}"]`);
+        if(row) row.classList.add("d-none");
+        return;
+      }
+      if(ap || rj){
+        const id = (ap||rj).getAttribute(ap ? "data-approve" : "data-reject");
+        const status = ap ? "APPROVED" : "REJECTED";
+        const note = prompt(status==="APPROVED" ? "승인 메모(선택)" : "반려 사유(선택)", "") || "";
+        try{
+          await CodeAI.authRequest(`/api/v1/admin/weekly-reports/${id}/review`, TOKEN_KEY, {
+            method:"POST",
+            body: JSON.stringify({ status, note })
+          });
+          await run();
+        }catch(err){
+          alert("실패: " + err.message);
+        }
+      }
+    });
+    await run();
+  }
+
+  // ---------- Existing reports (unchanged endpoints) ----------
   async function loadReports(){
-    const out = await CodeAI.authRequest("/api/v1/admin/reports", TOKEN_KEY, { method:"GET" });
-    const list = out.list || [];
     const wrap = $("tab-reports");
-    wrap.innerHTML = "";
-    if(!list.length){
-      wrap.innerHTML = "<div class='card p-3 muted'>검수할 리포트가 없습니다.</div>";
-      return;
-    }
-    list.forEach(x=>{
-      const type = x.type === "ALGORITHM" ? "알고리즘" : "프로젝트";
-      const card = document.createElement("div");
-      card.className = "card p-3 mb-3";
-      card.innerHTML = `
-        <div class="d-flex justify-content-between align-items-start">
-          <div>
-            <div class="h6 mb-1">#${x.id} <span class="badge text-bg-warning">${esc(x.status)}</span></div>
-            <div class="muted small">수강ID: ${x.enrollment_id} · 유형: ${type} ${x.score!==null && x.score!==undefined ? "· 점수: " + esc(x.score) : ""}</div>
-            <div class="muted small">제목: ${esc(x.title)}</div>
-            ${x.summary ? `<div class="mt-2"><div class="small muted">요약</div><div>${esc(x.summary)}</div></div>` : ""}
-            ${x.feedback ? `<div class="mt-2"><div class="small muted">강사 첨삭</div><div>${esc(x.feedback)}</div></div>` : ""}
-          </div>
-          <div class="text-end">
-            <button class="btn btn-sm btn-success smallbtn" data-rapp="${x.id}">승인</button>
-            <button class="btn btn-sm btn-outline-danger smallbtn" data-rrej="${x.id}">반려</button>
-          </div>
+    wrap.innerHTML = `<div class="muted small mb-2">기존 PROJECT/ALGORITHM 리포트 검수</div><div id="repMsg" class="small muted">불러오는 중…</div>`;
+    try{
+      const out = await CodeAI.authRequest("/api/v1/admin/reports", TOKEN_KEY, { method:"GET" });
+      const list = out.list || [];
+      wrap.innerHTML = `
+        <div class="small muted mb-2">총 ${list.length}건</div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead><tr class="muted"><th>ID</th><th>타입</th><th>제목</th><th>상태</th><th>액션</th></tr></thead>
+            <tbody>
+              ${list.map(r=>`
+                <tr>
+                  <td class="mono">${r.id}</td>
+                  <td>${esc(r.type)}</td>
+                  <td>${esc(r.title)}</td>
+                  <td><span class="badge text-bg-${r.status==='APPROVED'?'success':(r.status==='REJECTED'?'danger':'secondary')}">${esc(r.status)}</span></td>
+                  <td>
+                    <button class="btn btn-sm btn-success smallbtn" data-rpapp="${r.id}">승인</button>
+                    <button class="btn btn-sm btn-danger smallbtn" data-rprej="${r.id}">반려</button>
+                  </td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
         </div>
       `;
-      wrap.appendChild(card);
-    });
-
-    wrap.querySelectorAll("[data-rapp]").forEach(btn=>{
-      btn.addEventListener("click", async ()=>{
-        const id = btn.getAttribute("data-rapp");
-        const note = prompt("승인 메모(선택)");
-        await CodeAI.authRequest(`/api/v1/admin/reports/${id}/review`, TOKEN_KEY, {
-          method:"PUT",
-          body: JSON.stringify({ status:"APPROVED", note: note || null })
-        });
-        alert("승인되었습니다.");
-        loadReports();
-      });
-    });
-    wrap.querySelectorAll("[data-rrej]").forEach(btn=>{
-      btn.addEventListener("click", async ()=>{
-        const id = btn.getAttribute("data-rrej");
-        const note = prompt("반려 사유(필수)");
-        if(!note) return;
-        await CodeAI.authRequest(`/api/v1/admin/reports/${id}/review`, TOKEN_KEY, {
-          method:"PUT",
-          body: JSON.stringify({ status:"REJECTED", note })
-        });
-        alert("반려되었습니다.");
-        loadReports();
-      });
-    });
+    }catch(e){
+      wrap.innerHTML = "오류: " + e.message;
+    }
+    wrap.onclick = async (e)=>{
+      const a = e.target.closest("button[data-rpapp]");
+      const r = e.target.closest("button[data-rprej]");
+      if(!a && !r) return;
+      const id = (a||r).getAttribute(a ? "data-rpapp":"data-rprej");
+      const status = a ? "APPROVED" : "REJECTED";
+      const note = prompt(status==="APPROVED" ? "승인 메모(선택)" : "반려 사유(선택)", "") || "";
+      try{
+        await CodeAI.authRequest(`/api/v1/admin/reports/${id}/review`, TOKEN_KEY, { method:"PUT", body: JSON.stringify({ status, note }) });
+        await loadReports();
+      }catch(err){
+        alert("실패: " + err.message);
+      }
+    };
   }
 
-  function boot(){
-    const t = localStorage.getItem(TOKEN_KEY);
-    if(t){
+  // ---------- instructor applications ----------
+  async function loadInstructorApps(){
+    const wrap = $("tab-instApps");
+    wrap.innerHTML = `<div class="muted small mb-2">강사 지원서 검수</div><div class="small muted">불러오는 중…</div>`;
+    try{
+      const out = await CodeAI.authRequest("/api/v1/admin/instructor-applications", TOKEN_KEY, { method:"GET" });
+      const list = out.list || [];
+      wrap.innerHTML = `
+        <div class="small muted mb-2">총 ${list.length}건</div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead><tr class="muted"><th>ID</th><th>이름</th><th>연락처</th><th>타입</th><th>상태</th><th>액션</th></tr></thead>
+            <tbody>
+              ${list.map(r=>`
+                <tr>
+                  <td class="mono">${r.id}</td>
+                  <td>${esc(r.name)}</td>
+                  <td class="mono small">${esc(r.phone)}</td>
+                  <td class="small">${esc(r.instructor_type||"-")}</td>
+                  <td>${esc(r.status)}</td>
+                  <td>
+                    <button class="btn btn-sm btn-success smallbtn" data-ia="${r.id}">승인</button>
+                    <button class="btn btn-sm btn-danger smallbtn" data-ir="${r.id}">반려</button>
+                  </td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
+      wrap.onclick = async (e)=>{
+        const ap = e.target.closest("button[data-ia]");
+        const rj = e.target.closest("button[data-ir]");
+        if(!ap && !rj) return;
+        const id = (ap||rj).getAttribute(ap ? "data-ia":"data-ir");
+        const status = ap ? "APPROVED" : "REJECTED";
+        const note = prompt(status==="APPROVED" ? "승인 메모(선택)" : "반려 사유(선택)", "") || "";
+        await CodeAI.authRequest(`/api/v1/admin/instructor-applications/${id}/review`, TOKEN_KEY, { method:"PUT", body: JSON.stringify({ status, note }) });
+        await loadInstructorApps();
+      };
+    }catch(e){
+      wrap.innerHTML = "오류: " + e.message;
+    }
+  }
+
+  // ---------- student applications ----------
+  async function loadStudents(){
+    const wrap = $("tab-students");
+    wrap.innerHTML = `<div class="muted small mb-2">학생 신청 목록</div><div class="small muted">불러오는 중…</div>`;
+    try{
+      const out = await CodeAI.authRequest("/api/v1/admin/student-applications", TOKEN_KEY, { method:"GET" });
+      const list = out.list || [];
+      wrap.innerHTML = `
+        <div class="small muted mb-2">총 ${list.length}건</div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead><tr class="muted"><th>ID</th><th>이름</th><th>전화</th><th>선호타입</th><th>상태</th></tr></thead>
+            <tbody>
+              ${list.map(r=>`
+                <tr>
+                  <td class="mono">${r.id}</td>
+                  <td>${esc(r.name)}</td>
+                  <td class="mono small">${esc(r.phone)}</td>
+                  <td class="small">${esc(r.preferred_instructor_type||"-")}</td>
+                  <td>${esc(r.status)}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }catch(e){
+      wrap.innerHTML = "오류: " + e.message;
+    }
+  }
+
+  // Auto-login if token exists
+  (async ()=>{
+    if(localStorage.getItem(TOKEN_KEY)){
       $("loginCard").classList.add("d-none");
       $("app").classList.remove("d-none");
-      refreshAll().catch(()=>{});
+      await loadEnrollments();
     }
-  }
+  })();
 
-  document.querySelectorAll("button[data-tab]").forEach(b=>{
-    b.addEventListener("click", ()=>showTab(b.getAttribute("data-tab")));
-  });
-  showTab("instApps");
-
-  $("loginBtn").addEventListener("click", login);
-  $("logoutBtn").addEventListener("click", ()=>{ localStorage.removeItem(TOKEN_KEY); location.reload(); });
-
-  boot();
 })();
 </script>
 </body>

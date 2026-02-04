@@ -494,6 +494,60 @@
 </div>
 </div>
 </section>
+
+    <!-- ===== Featured Instructors (A안) ===== -->
+    <section id="featured-instructors" class="py-5" style="background:#f7f8fb;">
+      <div class="container">
+        <div class="d-flex align-items-end justify-content-between mb-3">
+          <div>
+            <h2 class="h3 mb-1">메인 강사</h2>
+            <div class="text-muted">대표 강사 20명을 한눈에 확인하세요.</div>
+          </div>
+          <div class="text-muted small">
+            총 강사 <span id="statInstructors">-</span> · 총 수강생 <span id="statStudents">-</span>
+          </div>
+        </div>
+        <div id="featuredGrid" class="row g-3"></div>
+      </div>
+    </section>
+
+    <script>
+      (function(){
+        if(!window.CodeAI) return;
+        const esc = (s)=>String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+        async function run(){
+          try{
+            const stats = await CodeAI.request("/api/v1/public/stats", { method:"GET" });
+            const a = document.getElementById("statInstructors");
+            const b = document.getElementById("statStudents");
+            if(a) a.textContent = stats.total_instructors ?? "-";
+            if(b) b.textContent = stats.total_students ?? "-";
+          }catch(e){}
+          try{
+            const out = await CodeAI.request("/api/v1/public/featured-instructors", { method:"GET" });
+            const list = out.instructors || [];
+            const grid = document.getElementById("featuredGrid");
+            if(!grid) return;
+            grid.innerHTML = list.slice(0,20).map(i=>{
+              const subjects = (()=>{ try{ return JSON.parse(i.subjects||"[]").slice(0,3).join(", "); }catch(e){ return ""; } })();
+              return `
+                <div class="col-6 col-md-3 col-lg-2">
+                  <div class="card h-100 shadow-sm" style="border-radius:16px;">
+                    <div class="card-body p-3">
+                      <div class="fw-bold">${esc(i.name||"")}</div>
+                      <div class="text-muted small">${esc(i.instructor_type||"")}</div>
+                      <div class="small mt-2">${esc(subjects)}</div>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join("");
+          }catch(e){}
+        }
+        run();
+      })();
+    </script>
+
 </main><!-- End #main -->
 <!-- ======= Footer ======= -->
 <footer data-aos="fade-up" data-aos-duration="500" data-aos-easing="ease-in-out" id="footer">

@@ -166,3 +166,50 @@ CREATE TABLE IF NOT EXISTS notification_logs (
 ALTER TABLE student_applications ADD COLUMN preferred_instructor_type ENUM('ANY','COLLEGE','EMPLOYEE','FREELANCER','FULLTIME_TUTOR','OTHER') NOT NULL DEFAULT 'ANY';
 ALTER TABLE instructors ADD COLUMN instructor_type ENUM('COLLEGE','EMPLOYEE','FREELANCER','FULLTIME_TUTOR','OTHER') NULL;
 ALTER TABLE instructor_applications ADD COLUMN instructor_type ENUM('COLLEGE','EMPLOYEE','FREELANCER','FULLTIME_TUTOR','OTHER') NULL;
+
+
+-- ===== A안 추가: featured + portal code events + weekly reports =====
+
+ALTER TABLE instructors ADD COLUMN is_featured TINYINT(1) NOT NULL DEFAULT 0;
+ALTER TABLE instructors ADD INDEX idx_instructors_featured (is_featured);
+
+CREATE TABLE IF NOT EXISTS portal_code_events (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  enrollment_id BIGINT UNSIGNED NOT NULL,
+  event_type ENUM('ISSUE','USE') NOT NULL,
+  code_value VARCHAR(64) NULL,
+  actor_role ENUM('ADMIN','SYSTEM','PORTAL') NOT NULL DEFAULT 'SYSTEM',
+  actor_id BIGINT UNSIGNED NULL,
+  ip VARCHAR(64) NULL,
+  user_agent VARCHAR(255) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_pce_enrollment FOREIGN KEY (enrollment_id) REFERENCES enrollments(id)
+    ON DELETE CASCADE,
+  INDEX idx_pce_enrollment (enrollment_id),
+  INDEX idx_pce_type (event_type),
+  INDEX idx_pce_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS weekly_reports (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  enrollment_id BIGINT UNSIGNED NOT NULL,
+  instructor_id BIGINT UNSIGNED NOT NULL,
+  week_start_date DATE NOT NULL,
+  metrics_json JSON NULL,
+  algo_score INT NULL,
+  project_feedback TEXT NULL,
+  instructor_comment TEXT NULL,
+  admin_status ENUM('PENDING','APPROVED','REJECTED') NOT NULL DEFAULT 'PENDING',
+  admin_note TEXT NULL,
+  reviewed_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_wr_enrollment FOREIGN KEY (enrollment_id) REFERENCES enrollments(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_wr_instructor FOREIGN KEY (instructor_id) REFERENCES instructors(id)
+    ON DELETE RESTRICT,
+  UNIQUE KEY uq_wr_enr_week (enrollment_id, week_start_date),
+  INDEX idx_wr_status (admin_status),
+  INDEX idx_wr_week (week_start_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+

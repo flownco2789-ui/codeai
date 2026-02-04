@@ -78,6 +78,38 @@ function jsonStr(v){
 function ok(res, payload){ return res.json(Object.assign({ ok: true }, payload || {})); }
 function bad(res, code, message, status=400){ return res.status(status).json({ ok:false, code, message }); }
 
+function pad2(n){ return String(n).padStart(2,"0"); }
+function fmtDateTime(d){
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}
+function startOfWeekMonday(dateObj){
+  const d = new Date(dateObj);
+  d.setHours(0,0,0,0);
+  // JS: 0=Sun,1=Mon.. => convert to Monday start
+  const day = d.getDay();
+  const diff = (day === 0 ? -6 : (1 - day));
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+async function logPortalCodeEvent(pool, { enrollmentId, eventType, codeValue=null, actorRole="SYSTEM", actorId=null, req=null }){
+  try{
+    const ip = (req && (req.headers["x-forwarded-for"] || req.ip)) ? String(req.headers["x-forwarded-for"] || req.ip).split(",")[0].trim() : null;
+    const ua = (req && req.headers["user-agent"]) ? String(req.headers["user-agent"]).slice(0,255) : null;
+    await pool.query(
+      "INSERT INTO portal_code_events (enrollment_id,event_type,code_value,actor_role,actor_id,ip,user_agent) VALUES (:eid,:t,:v,:r,:aid,:ip,:ua)",
+      { eid: enrollmentId, t: eventType, v: codeValue, r: actorRole, aid: actorId, ip, ua }
+    );
+  }catch(e){
+    // logging must not break flow
+    console.warn("portal_code_events insert failed:", e?.code || e?.message || e);
+  }
+}
+function genPortalCode(){
+  // 6 digits
+  return String(Math.floor(100000 + Math.random()*900000));
+}
+
+
 // Health
 app.get("/healthz", (req,res)=> ok(res, { status:"ok" }));
 
@@ -137,8 +169,9 @@ app.get("/api/v1/public/instructors", async (req,res)=>{
     const region = mustStr(req.query?.region) || null;
     const instructorTypeRaw = mustStr(req.query?.instructorType) || mustStr(req.query?.instructor_type) || null;
     const instructorType = (instructorTypeRaw && instructorTypeRaw.trim()) ? instructorTypeRaw.trim() : null;
+const featured = mustStr(req.query?.featured) || null;
 
-    let sql = "SELECT id,name,subjects,modes,region,instructor_type,education,career,major,age,gender,photo_url FROM instructors WHERE status='ACTIVE'";
+    let sql = "SELECT id,name,subjects,modes,region,instructor_type,is_featured,education,career,major,age,gender,photo_url FROM instructors WHERE status='ACTIVE'";
     const params = {};
     if(region){
       sql += " AND (region IS NULL OR region='' OR region LIKE :regionLike)";
@@ -156,7 +189,11 @@ app.get("/api/v1/public/instructors", async (req,res)=>{
     if(instructorType && instructorType !== "ANY"){
       sql += " AND instructor_type = :instructorType";
       params.instructorType = instructorType;
+    
+    if(featured === "1"){
+      sql += " AND is_featured = 1";
     }
+}
     sql += " ORDER BY id DESC LIMIT 50";
 
     const [rows] = await pool.query(sql, params);
@@ -167,6 +204,7 @@ app.get("/api/v1/public/instructors", async (req,res)=>{
       modes: typeof r.modes === "string" ? r.modes : JSON.stringify(r.modes),
       region: r.region,
       instructor_type: r.instructor_type,
+      is_featured: r.is_featured,
       education: r.education,
       career: r.career,
       major: r.major,
@@ -178,6 +216,40 @@ app.get("/api/v1/public/instructors", async (req,res)=>{
     console.error(e);
     bad(res,"SERVER_ERROR","Failed to list instructors",500);
   }
+
+// 메인강사(Featured) 20명
+app.get("/api/v1/public/featured-instructors", async (req,res)=>{
+  try{
+    const [rows] = await pool.query(
+      "SELECT id,name,subjects,modes,region,instructor_type,is_featured,education,career,major,age,gender,photo_url " +
+      "FROM instructors WHERE status='ACTIVE' AND is_featured=1 ORDER BY id DESC LIMIT 20"
+    );
+    ok(res, { instructors: rows.map(r=>({
+      id:r.id, name:r.name,
+      subjects: typeof r.subjects === "string" ? r.subjects : JSON.stringify(r.subjects),
+      modes: typeof r.modes === "string" ? r.modes : JSON.stringify(r.modes),
+      region:r.region, instructor_type:r.instructor_type, is_featured:r.is_featured,
+      education:r.education, career:r.career, major:r.major, age:r.age, gender:r.gender,
+      photo_url:r.photo_url
+    }))});
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
+// 통계(총 강사 수 / 총 수강생 수)
+app.get("/api/v1/public/stats", async (req,res)=>{
+  try{
+    const [[a]] = await pool.query("SELECT COUNT(*) AS cnt FROM instructors WHERE status='ACTIVE'");
+    const [[b]] = await pool.query("SELECT COUNT(DISTINCT phone) AS cnt FROM student_applications");
+    ok(res, { total_instructors: Number(a.cnt||0), total_students: Number(b.cnt||0) });
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
 });
 
 // 학생이 강사 선택
@@ -437,13 +509,24 @@ app.get("/api/v1/admin/student-applications", requireAuth("ADMIN"), async (req,r
 
 app.get("/api/v1/admin/enrollments", requireAuth("ADMIN"), async (req,res)=>{
   try{
-    const [rows] = await pool.query(
-      "SELECT e.*, sa.name AS student_name, sa.phone AS student_phone, i.name AS instructor_name, i.email AS instructor_email " +
+    const search = mustStr(req.query?.search) || null;
+
+    let sql =
+      "SELECT e.*, " +
+      " sa.name AS student_name, sa.phone AS student_phone, sa.mode AS mode, sa.region AS student_region, " +
+      " i.name AS instructor_name, i.email AS instructor_email, i.instructor_type AS instructor_type, i.is_featured AS is_featured, " +
+      " (SELECT MAX(created_at) FROM portal_code_events pce WHERE pce.enrollment_id=e.id AND pce.event_type='ISSUE') AS last_code_issued_at " +
       "FROM enrollments e " +
       "JOIN student_applications sa ON sa.id=e.student_application_id " +
-      "JOIN instructors i ON i.id=e.instructor_id " +
-      "ORDER BY e.id DESC LIMIT 200"
-    );
+      "JOIN instructors i ON i.id=e.instructor_id ";
+    const params = {};
+    if(search){
+      sql += "WHERE (sa.name LIKE :q OR sa.phone LIKE :q OR i.name LIKE :q OR i.email LIKE :q) ";
+      params.q = `%${search}%`;
+    }
+    sql += "ORDER BY e.id DESC LIMIT 300";
+
+    const [rows] = await pool.query(sql, params);
     ok(res, { list: rows.map(r=>({
       id:r.id,
       status:r.status,
@@ -451,9 +534,124 @@ app.get("/api/v1/admin/enrollments", requireAuth("ADMIN"), async (req,res)=>{
       end_date:r.end_date,
       student_name:r.student_name,
       student_phone:r.student_phone,
+      mode:r.mode,
+      student_region:r.student_region,
+      instructor_id:r.instructor_id,
       instructor_name:r.instructor_name,
-      instructor_email:r.instructor_email
+      instructor_email:r.instructor_email,
+      instructor_type:r.instructor_type,
+      is_featured:r.is_featured,
+      last_code_issued_at:r.last_code_issued_at
     }))});
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
+app.get("/api/v1/admin/instructors", requireAuth("ADMIN"), async (req,res)=>{
+  try{
+    const search = mustStr(req.query?.search) || null;
+    const instructorTypeRaw = mustStr(req.query?.instructorType) || null;
+    const instructorType = instructorTypeRaw ? instructorTypeRaw.trim() : null;
+    const featured = mustStr(req.query?.featured) || null;
+
+    let sql = "SELECT id,name,phone,email,region,instructor_type,is_featured,subjects,modes,education,career,major,age,gender,photo_url,status FROM instructors WHERE 1=1";
+    const params = {};
+    if(search){
+      sql += " AND (name LIKE :q OR phone LIKE :q OR email LIKE :q)";
+      params.q = `%${search}%`;
+    }
+    if(instructorType && instructorType !== "ANY"){
+      sql += " AND instructor_type=:t";
+      params.t = instructorType;
+    }
+    if(featured === "1"){
+      sql += " AND is_featured=1";
+    }
+    sql += " ORDER BY is_featured DESC, id DESC LIMIT 300";
+    const [rows] = await pool.query(sql, params);
+    ok(res, { instructors: rows.map(r=>({
+      id:r.id, name:r.name, phone:r.phone, email:r.email, region:r.region,
+      instructor_type:r.instructor_type, is_featured:r.is_featured,
+      subjects: typeof r.subjects === "string" ? r.subjects : JSON.stringify(r.subjects),
+      modes: typeof r.modes === "string" ? r.modes : JSON.stringify(r.modes),
+      photo_url:r.photo_url, status:r.status
+    }))});
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
+app.put("/api/v1/admin/instructors/:id/feature", requireAuth("ADMIN"), async (req,res)=>{
+  try{
+    const id = Number(req.params.id);
+    const isFeatured = Number(req.body?.isFeatured || req.body?.is_featured || 0) ? 1 : 0;
+    if(!id) return bad(res,"INVALID_INPUT","id required");
+    await pool.query("UPDATE instructors SET is_featured=:f WHERE id=:id", { id, f:isFeatured });
+    ok(res, {});
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
+app.post("/api/v1/admin/enrollments/:id/assign-instructor", requireAuth("ADMIN"), async (req,res)=>{
+  try{
+    const enrollmentId = Number(req.params.id);
+    const instructorId = Number(req.body?.instructorId);
+    if(!enrollmentId || !instructorId) return bad(res,"INVALID_INPUT","enrollmentId/instructorId required");
+    await pool.query("UPDATE enrollments SET instructor_id=:iid WHERE id=:eid", { eid: enrollmentId, iid: instructorId });
+    ok(res, {});
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
+// 학부모코드 재발급
+app.post("/api/v1/admin/enrollments/:id/portal-code/reissue", requireAuth("ADMIN"), async (req,res)=>{
+  try{
+    const enrollmentId = Number(req.params.id);
+    if(!enrollmentId) return bad(res,"INVALID_INPUT","id required");
+
+    const [[enr]] = await pool.query(
+      "SELECT e.id, sa.phone AS phone FROM enrollments e JOIN student_applications sa ON sa.id=e.student_application_id WHERE e.id=:id",
+      { id: enrollmentId }
+    );
+    if(!enr) return bad(res,"NOT_FOUND","not found",404);
+
+    // invalidate old codes
+    await pool.query("UPDATE portal_access_codes SET expires_at=NOW() WHERE enrollment_id=:eid AND expires_at > NOW()", { eid: enrollmentId });
+
+    const portalCode = genPortalCode();
+    const codeHash = await hashPassword(portalCode);
+    const expiresAt = new Date(Date.now() + 1000*60*60*24*120);
+    await pool.query(
+      "INSERT INTO portal_access_codes (enrollment_id,phone,code_hash,expires_at) VALUES (:eid,:phone,:hash,:exp)",
+      { eid: enrollmentId, phone: enr.phone, hash: codeHash, exp: fmtDateTime(expiresAt) }
+    );
+
+    await logPortalCodeEvent(pool, { enrollmentId, eventType: "ISSUE", codeValue: portalCode, actorRole: "ADMIN", actorId: req.user?.id || null, req });
+
+    ok(res, { code: portalCode, expires_at: fmtDateTime(expiresAt) });
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
+// 학부모코드 로그(ISSUE/USE)
+app.get("/api/v1/admin/enrollments/:id/portal-code/logs", requireAuth("ADMIN"), async (req,res)=>{
+  try{
+    const enrollmentId = Number(req.params.id);
+    if(!enrollmentId) return bad(res,"INVALID_INPUT","id required");
+    const [rows] = await pool.query(
+      "SELECT id,event_type,code_value,actor_role,actor_id,ip,user_agent,created_at FROM portal_code_events WHERE enrollment_id=:eid ORDER BY id DESC LIMIT 200",
+      { eid: enrollmentId }
+    );
+    ok(res, { logs: rows });
   }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
@@ -486,7 +684,7 @@ app.post("/api/v1/admin/enrollments/:id/mark-paid", requireAuth("ADMIN"), async 
 
     await pool.query("UPDATE enrollments SET status='PAID' WHERE id=:id", { id });
 
-    const portalCode = String(Math.floor(100000 + Math.random()*900000));
+    const portalCode = genPortalCode();
     const codeHash = await hashPassword(portalCode);
     const expiresAt = new Date(Date.now() + 1000*60*60*24*120); // 120 days
     const fmt = (d)=> {
@@ -497,6 +695,8 @@ app.post("/api/v1/admin/enrollments/:id/mark-paid", requireAuth("ADMIN"), async 
       "INSERT INTO portal_access_codes (enrollment_id,phone,code_hash,expires_at) VALUES (:eid,:phone,:hash,:exp)",
       { eid:id, phone: enr.phone, hash: codeHash, exp: fmt(expiresAt) }
     );
+    await logPortalCodeEvent(pool, { enrollmentId: id, eventType: "ISSUE", codeValue: portalCode, actorRole: "ADMIN", actorId: req.user?.id || null, req });
+
 
     await notifyPhone(pool, enr.phone, "PORTAL_CODE_ISSUED", { enrollmentId:id, portalCode });
 
@@ -528,6 +728,63 @@ app.put("/api/v1/admin/reports/:id/review", requireAuth("ADMIN"), async (req,res
       { id, status, note }
     );
     ok(res, {});
+
+/** ===========================
+ * WEEKLY REPORTS (A안)
+ * =========================== */
+
+// 관리자: 주간보고서 목록(필터/검색)
+app.get("/api/v1/admin/weekly-reports", requireAuth("ADMIN"), async (req,res)=>{
+  try{
+    const status = mustStr(req.query?.status) || null;
+    const search = mustStr(req.query?.search) || null;
+
+    let sql =
+      "SELECT wr.id, wr.enrollment_id, wr.instructor_id, wr.week_start_date, wr.metrics_json, wr.algo_score, wr.project_feedback, wr.instructor_comment, " +
+      "wr.admin_status, wr.admin_note, wr.reviewed_at, wr.created_at, " +
+      "sa.name AS student_name, sa.phone AS student_phone, i.name AS instructor_name " +
+      "FROM weekly_reports wr " +
+      "JOIN enrollments e ON e.id=wr.enrollment_id " +
+      "JOIN student_applications sa ON sa.id=e.student_application_id " +
+      "JOIN instructors i ON i.id=wr.instructor_id " +
+      "WHERE 1=1 ";
+    const params = {};
+    if(status && ["PENDING","APPROVED","REJECTED"].includes(status)){
+      sql += " AND wr.admin_status=:st";
+      params.st = status;
+    }
+    if(search){
+      sql += " AND (sa.name LIKE :q OR sa.phone LIKE :q OR i.name LIKE :q)";
+      params.q = `%${search}%`;
+    }
+    sql += " ORDER BY wr.week_start_date DESC, wr.id DESC LIMIT 500";
+    const [rows] = await pool.query(sql, params);
+    ok(res, { list: rows });
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
+// 관리자: 승인/반려
+app.post("/api/v1/admin/weekly-reports/:id/review", requireAuth("ADMIN"), async (req,res)=>{
+  try{
+    const id = Number(req.params.id);
+    const status = mustStr(req.body?.status);
+    const note = mustStr(req.body?.note) || null;
+    if(!id || !status || !["APPROVED","REJECTED"].includes(status)) return bad(res,"INVALID_INPUT","status required");
+
+    await pool.query(
+      "UPDATE weekly_reports SET admin_status=:st, admin_note=:note, reviewed_at=NOW() WHERE id=:id",
+      { id, st: status, note }
+    );
+    ok(res, {});
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
   }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
@@ -573,6 +830,60 @@ app.get("/api/v1/instructor/enrollments", requireAuth("INSTRUCTOR"), async (req,
         ids
       );
       paymentsBy = pays.reduce((acc,p)=>{ (acc[p.enrollment_id] ||= []).push(p); return acc; }, {});
+
+// 강사용: 주간 학습보고서 조회(최근 12주)
+app.get("/api/v1/instructor/enrollments/:id/weekly-reports", requireAuth("INSTRUCTOR"), async (req,res)=>{
+  try{
+    const instructorId = req.user.id;
+    const enrollmentId = Number(req.params.id);
+    if(!enrollmentId) return bad(res,"INVALID_INPUT","id required");
+
+    const [[enr]] = await pool.query("SELECT * FROM enrollments WHERE id=:id AND instructor_id=:iid", { id: enrollmentId, iid: instructorId });
+    if(!enr) return bad(res,"FORBIDDEN","not allowed",403);
+
+    const [rows] = await pool.query(
+      "SELECT * FROM weekly_reports WHERE enrollment_id=:eid ORDER BY week_start_date DESC LIMIT 12",
+      { eid: enrollmentId }
+    );
+    ok(res, { reports: rows });
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
+// 강사용: 주간 학습보고서 upsert
+app.post("/api/v1/instructor/enrollments/:id/weekly-reports", requireAuth("INSTRUCTOR"), async (req,res)=>{
+  try{
+    const instructorId = req.user.id;
+    const enrollmentId = Number(req.params.id);
+    if(!enrollmentId) return bad(res,"INVALID_INPUT","id required");
+
+    const [[enr]] = await pool.query("SELECT * FROM enrollments WHERE id=:id AND instructor_id=:iid", { id: enrollmentId, iid: instructorId });
+    if(!enr) return bad(res,"FORBIDDEN","not allowed",403);
+
+    const weekStartRaw = mustStr(req.body?.weekStartDate) || mustStr(req.body?.week_start_date) || null;
+    const weekStart = weekStartRaw ? weekStartRaw : (()=>{ const d = startOfWeekMonday(new Date()); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; })();
+
+    const metrics = req.body?.metrics || req.body?.metrics_json || null;
+    const algoScore = (req.body?.algo_score === 0 || req.body?.algo_score) ? Number(req.body?.algo_score) : (req.body?.algoScore ? Number(req.body?.algoScore) : null);
+    const projectFeedback = mustStr(req.body?.project_feedback) || mustStr(req.body?.projectFeedback) || null;
+    const instructorComment = mustStr(req.body?.instructor_comment) || mustStr(req.body?.instructorComment) || null;
+
+    await pool.query(
+      "INSERT INTO weekly_reports (enrollment_id,instructor_id,week_start_date,metrics_json,algo_score,project_feedback,instructor_comment,admin_status) " +
+      "VALUES (:eid,:iid,:ws,:mj,:as,:pf,:ic,'PENDING') " +
+      "ON DUPLICATE KEY UPDATE metrics_json=VALUES(metrics_json), algo_score=VALUES(algo_score), project_feedback=VALUES(project_feedback), instructor_comment=VALUES(instructor_comment), admin_status='PENDING', admin_note=NULL, reviewed_at=NULL",
+      { eid: enrollmentId, iid: instructorId, ws: weekStart, mj: metrics ? JSON.stringify(metrics) : null, as: algoScore, pf: projectFeedback, ic: instructorComment }
+    );
+
+    ok(res, { week_start_date: weekStart });
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
     }
 
     ok(res, { list: rows.map(r=>({
@@ -712,6 +1023,8 @@ app.post("/api/v1/portal/login", async (req,res)=>{
 
     await pool.query("UPDATE portal_access_codes SET last_used_at=NOW() WHERE id=:id", { id: row.id });
 
+    await logPortalCodeEvent(pool, { enrollmentId: row.enrollment_id, eventType: "USE", codeValue: null, actorRole: "PORTAL", actorId: null, req });
+
     const token = signToken({ typ:"PORTAL", phone: formatPhone(phone) }, { expiresIn:"14d" });
     ok(res, { token });
   }catch(e){
@@ -732,6 +1045,32 @@ app.get("/api/v1/portal/enrollments", requireAuth("PORTAL"), async (req,res)=>{
       { phone }
     );
     ok(res, { enrollments: rows });
+
+// 학부모 포털: 주간 학습보고서(최근 12주, 승인된 것만)
+app.get("/api/v1/portal/enrollments/:id/weekly-reports", requireAuth("PORTAL"), async (req,res)=>{
+  try{
+    const phone = req.user.phone;
+    const enrollmentId = Number(req.params.id);
+    if(!enrollmentId) return bad(res,"INVALID_INPUT","id required");
+
+    const [[enr]] = await pool.query(
+      "SELECT e.id FROM enrollments e JOIN student_applications sa ON sa.id=e.student_application_id WHERE e.id=:id AND sa.phone=:phone",
+      { id: enrollmentId, phone }
+    );
+    if(!enr) return bad(res,"FORBIDDEN","not allowed",403);
+
+    const [rows] = await pool.query(
+      "SELECT id, week_start_date, metrics_json, algo_score, project_feedback, instructor_comment, created_at " +
+      "FROM weekly_reports WHERE enrollment_id=:eid AND admin_status='APPROVED' ORDER BY week_start_date DESC LIMIT 12",
+      { eid: enrollmentId }
+    );
+    ok(res, { reports: rows });
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
   }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
