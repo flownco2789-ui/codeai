@@ -22,16 +22,24 @@ canvas{width:100%;height:140px;}
 .badge-soft{background:#eef2ff;color:#374151;border:1px solid #e5e7eb;}
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
   </style>
+  <link rel="icon" href="assets/img/favicon.png" />
 </head>
 <body>
   <div class="container py-4">
     <div class="d-flex align-items-center justify-content-between mb-3">
       <div>
         <h3 class="mb-1">강사 포털</h3>
-        <div class="muted">학생 선택 → 최근 12주 대시보드 → 주간보고서 작성(업서트)</div>
+        <div class="mt-2">
+  <a href="#" id="navStudent" class="me-2">학생 선택</a>
+  <span class="muted">→</span>
+  <a href="#" id="navDash" class="mx-2">최근 12주 대시보드</a>
+  <span class="muted">→</span>
+  <a href="#" id="navReport" class="ms-2">주간보고서 작성(업서트)</a>
+</div>
       </div>
       <div class="text-end">
         <a href="index.html" class="btn btn-sm btn-outline-secondary">홈으로</a>
+        <button id="btnLogout" class="btn btn-sm btn-outline-danger ms-2">로그아웃</button>
       </div>
     </div>
 
@@ -53,7 +61,7 @@ canvas{width:100%;height:140px;}
     </div>
 
     <div id="app" class="d-none">
-      <div class="card p-3 mb-3">
+      <div class="card p-3 mb-3" id="sec-student">
         <div class="row g-2 align-items-end">
           <div class="col-md-8">
             <label class="form-label mb-1">담당 학생(Enrollment)</label>
@@ -68,7 +76,7 @@ canvas{width:100%;height:140px;}
 
       <div class="row g-3">
         <div class="col-lg-7">
-          <div class="card p-3">
+          <div class="card p-3" id="sec-dashboard">
             <div class="d-flex justify-content-between align-items-center mb-2">
               <div><b>최근 12주</b> <span class="muted small">(작성/대기/승인/반려)</span></div>
               <div class="muted small" id="count"></div>
@@ -79,7 +87,7 @@ canvas{width:100%;height:140px;}
         </div>
 
         <div class="col-lg-5">
-          <div class="card p-3">
+          <div class="card p-3" id="sec-report">
             <div class="mb-2"><b>주간 학습보고서 작성</b></div>
             <div class="row g-2">
               <div class="col-12">
@@ -128,6 +136,40 @@ canvas{width:100%;height:140px;}
 <script>
 (function(){
   const TOKEN_KEY = "codeai_instructor_token";
+
+  function humanizeLoginError(e){
+    const code = e && (e.code || (e.data && e.data.code));
+    const msg = (e && e.message) ? e.message : "";
+    if(code==="INVALID_CREDENTIALS") return "입력 정보를 다시 확인해주세요.";
+    if(code==="NO_TOKEN") return "로그인이 필요합니다.";
+    if(code==="INVALID_TOKEN") return "세션이 만료되었습니다. 다시 로그인해주세요.";
+    return msg || "로그인에 실패했습니다.";
+  }
+
+  function doLogout(message){
+    localStorage.removeItem(TOKEN_KEY);
+    $("app").classList.add("d-none");
+    $("loginCard").classList.remove("d-none");
+    if(message) {
+      $("loginMsg").classList.remove("muted"); $("loginMsg").classList.add("text-danger");
+      $("loginMsg").textContent = message;
+    } else {
+      $("loginMsg").textContent = "";
+    }
+  }
+
+  async function auth(path, opts){
+    try{
+      return await auth(path, opts || { method:"GET" });
+    }catch(e){
+      if(e && e.status===401 && (e.code==="INVALID_TOKEN" || e.code==="NO_TOKEN")){
+        doLogout("세션이 만료되어 로그아웃되었습니다. 다시 로그인해주세요.");
+        throw e;
+      }
+      throw e;
+    }
+  }
+
   const $ = (id)=>document.getElementById(id);
   const esc = (s)=>String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
 
@@ -141,18 +183,19 @@ canvas{width:100%;height:140px;}
       localStorage.setItem(TOKEN_KEY, out.token);
       $("loginCard").classList.add("d-none");
       $("app").classList.remove("d-none");
-      $("loginMsg").textContent = "";
+      $("loginMsg").classList.add("muted"); $("loginMsg").classList.remove("text-danger"); $("loginMsg").textContent = "";
       await loadEnrollments();
     }catch(e){
-      $("loginMsg").textContent = "로그인 실패: " + e.message;
+      $("loginMsg").classList.remove("muted"); $("loginMsg").classList.add("text-danger"); $("loginMsg").textContent = humanizeLoginError(e);
     }
   }
   $("btnLogin").addEventListener("click", doLogin);
+  $("btnLogout").addEventListener("click", ()=>doLogout());
 
   async function loadEnrollments(){
     $("msg").textContent = "수강 목록 불러오는 중…";
     try{
-      const out = await CodeAI.authRequest("/api/v1/instructor/enrollments", TOKEN_KEY, { method:"GET" });
+      const out = await auth("/api/v1/instructor/enrollments", { method:"GET" });
       const list = out.enrollments || [];
       const sel = $("enrSel");
       sel.innerHTML = list.map(e=>{
@@ -178,7 +221,7 @@ canvas{width:100%;height:140px;}
     if(!eid) return;
     $("msg").textContent = "주간보고서 불러오는 중…";
     try{
-      const out = await CodeAI.authRequest(`/api/v1/instructor/enrollments/${eid}/weekly-reports`, TOKEN_KEY, { method:"GET" });
+      const out = await auth(`/api/v1/instructor/enrollments/${eid}/weekly-reports`, { method:"GET" });
       const list = out.reports || [];
       $("count").textContent = `총 ${list.length}건`;
       // ----- dashboard (12주) -----
@@ -566,7 +609,7 @@ paint();
         project_feedback: $("projectFeedback").value,
         instructor_comment: $("instructorComment").value
       };
-      await CodeAI.authRequest(`/api/v1/instructor/enrollments/${eid}/weekly-reports`, TOKEN_KEY, {
+      await auth(`/api/v1/instructor/enrollments/${eid}/weekly-reports`, {
         method:"POST",
         body: JSON.stringify(payload)
       });
@@ -589,9 +632,7 @@ paint();
     }
   })();
 })();
-</script>
-</body>
-</html>
+
 
 function renderComparison(sortedAll){
   const n = sortedAll.length;
@@ -710,3 +751,7 @@ function renderComparison(sortedAll){
 }
 
 
+
+</script>
+</body>
+</html>

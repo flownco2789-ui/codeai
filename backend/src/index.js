@@ -440,6 +440,19 @@ app.get("/api/v1/admin/instructor-applications", requireAuth("ADMIN"), async (re
   }
 });
 
+app.get("/api/v1/admin/instructor-applications/:id", requireAuth("ADMIN"), async (req,res)=>{
+  try{
+    const id = Number(req.params.id);
+    if(!id) return bad(res,"INVALID_INPUT","id required");
+    const [[row]] = await pool.query("SELECT * FROM instructor_applications WHERE id=:id", { id });
+    if(!row) return bad(res,"NOT_FOUND","Not found",404);
+    ok(res, { item: row });
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
 app.put("/api/v1/admin/instructor-applications/:id/review", requireAuth("ADMIN"), async (req,res)=>{
   try{
     const id = Number(req.params.id);
@@ -501,6 +514,19 @@ app.get("/api/v1/admin/student-applications", requireAuth("ADMIN"), async (req,r
       subjects: jsonStr(r.subjects), target:r.target, mode:r.mode, region:r.region, preferred_instructor_type:r.preferred_instructor_type, status:r.status,
       selected_instructor_id:r.selected_instructor_id, created_at:r.created_at
     }))});
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
+app.get("/api/v1/admin/student-applications/:id", requireAuth("ADMIN"), async (req,res)=>{
+  try{
+    const id = Number(req.params.id);
+    if(!id) return bad(res,"INVALID_INPUT","id required");
+    const [[row]] = await pool.query("SELECT * FROM student_applications WHERE id=:id", { id });
+    if(!row) return bad(res,"NOT_FOUND","Not found",404);
+    ok(res, { item: row });
   }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
@@ -582,6 +608,20 @@ app.get("/api/v1/admin/instructors", requireAuth("ADMIN"), async (req,res)=>{
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
+
+app.get("/api/v1/admin/instructors/:id", requireAuth("ADMIN"), async (req,res)=>{
+  try{
+    const id = Number(req.params.id);
+    if(!id) return bad(res,"INVALID_INPUT","id required");
+    const [[row]] = await pool.query("SELECT * FROM instructors WHERE id=:id", { id });
+    if(!row) return bad(res,"NOT_FOUND","Not found",404);
+    ok(res, { item: row });
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
 });
 
 app.put("/api/v1/admin/instructors/:id/feature", requireAuth("ADMIN"), async (req,res)=>{

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CodeAI 관리자 · 학생신청 상세</title>
+  <link rel="icon" href="assets/img/favicon.png" />
+  <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <script src="codeai-config.js"></script>
+  <script src="codeai-api.js"></script>
+  <style>
+    body {{ background:#f7f8fb; }}
+    .card {{ border-radius:16px; }}
+    .muted {{ color:#6c757d; }}
+    .kv {{ display:grid; grid-template-columns: 160px 1fr; gap:.35rem .75rem; }}
+    .kv b {{ color:#495057; }}
+    .photo {{ width:160px; height:160px; object-fit:cover; border-radius:16px; border:1px solid #e9ecef; }}
+  </style>
+</head>
+<body>
+  <div class="container py-4">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <div>
+        <h3 class="mb-1">학생신청 상세정보</h3>
+        <div class="muted">학생 신청(수강/배정) 상세 정보를 확인합니다.</div>
+      </div>
+      <div class="text-end">
+        <a href="admin.html" class="btn btn-sm btn-outline-secondary">관리자 홈</a>
+        <button id="btnLogout" class="btn btn-sm btn-outline-danger ms-2">로그아웃</button>
+      </div>
+    </div>
+
+    <div id="loginCard" class="card p-3 mb-3 d-none">
+      <div class="alert alert-warning mb-0">세션이 만료되었습니다. 관리자 페이지에서 다시 로그인해주세요.</div>
+    </div>
+
+    <div id="app" class="card p-3">
+      <div id="msg" class="small muted mb-3">불러오는 중…</div>
+      <div id="content"></div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const TOKEN_KEY = "codeai_admin_token";
+  const $ = (id)=>document.getElementById(id);
+  const esc = (s)=>String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+
+  function doLogout(){
+    localStorage.removeItem(TOKEN_KEY);
+    window.location.href = "admin.html";
+  }
+  $("btnLogout").addEventListener("click", doLogout);
+
+  async function auth(path, opts){
+    try{
+      return await CodeAI.authRequest(path, TOKEN_KEY, opts || {{ method:"GET" }});
+    }catch(e){
+      if(e && e.status===401 && (e.code==="INVALID_TOKEN" || e.code==="NO_TOKEN")){
+        $("app").classList.add("d-none");
+        $("loginCard").classList.remove("d-none");
+        return null;
+      }
+      throw e;
+    }
+  }
+
+  function qs(name){
+    return new URLSearchParams(window.location.search).get(name);
+  }
+
+  async function run(){
+    const id = qs("id");
+    if(!id){ $("msg").textContent = "잘못된 접근입니다. (id 없음)"; return; }
+    const data = await auth("/api/v1/admin/student-applications/{id}".replace("{id}", encodeURIComponent(id)), {{ method:"GET" }});
+    if(!data) return;
+
+    const item = data.item || data.instructor || data.application || data.student || data;
+    const photo = item.photo_url || item.photo || "";
+    const rows = Object.keys(item).sort().map(k=>{
+      let v = item[k];
+      if(v === null || v === undefined) v = "";
+      if(typeof v === "object") v = JSON.stringify(v);
+      return `<div><b>${esc(k)}</b></div><div>${esc(String(v))}</div>`;
+    }).join("");
+
+    $("msg").textContent = "";
+    $("content").innerHTML = `
+      <div class="d-flex gap-3 align-items-start">
+        <div>
+          ${photo ? `<img class="photo" src="${esc(photo)}" alt="photo" />` : `<div class="photo d-flex align-items-center justify-content-center muted">NO PHOTO</div>`}
+        </div>
+        <div class="flex-grow-1">
+          <div class="kv">${rows}</div>
+        </div>
+      </div>
+    `;
+  }
+  run().catch(e=>{ $("msg").textContent = "오류: " + (e.message||e); });
+})();
+</script>
+</body>
+</html>

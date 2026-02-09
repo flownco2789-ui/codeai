@@ -64,6 +64,11 @@ async function main(){
   const typePool = ["COLLEGE","EMPLOYEE","FREELANCER","FULLTIME_TUTOR","OTHER"];
 
   const instructorIds = [];
+  
+  // Instructor profile photos (20) - assign without duplicates for featured (1~20)
+  const photoPool = Array.from({length:20}, (_,k)=>`/assets/img/instructors/instructor_${String(k+1).padStart(2,"0")}.png`);
+  const shuffledPhotos = photoPool.slice().sort(()=>Math.random()-0.5);
+
   for(let i=1;i<=25;i++){
     const name = `강사${String(i).padStart(2,"0")}`;
     const email = `teacher${String(i).padStart(2,"0")}@codeai.co.kr`;
@@ -89,7 +94,7 @@ async function main(){
         major: "컴퓨터/공학",
         age: randInt(21,39),
         gender: randPick(["M","F","OTHER"]),
-        photo: null
+        photo: (i<=20 ? shuffledPhotos[i-1] : randPick(photoPool))
       }
     );
     const id = r.insertId || (await conn.query("SELECT id FROM instructors WHERE email=:email", { email })).[0][0].id;
