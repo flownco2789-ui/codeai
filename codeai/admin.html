@@ -701,5 +701,52 @@ async function auth(path, opts){
 
 })();
 </script>
+<script>
+(function () {
+  function doLogoutHard() {
+    try {
+      // 토큰 키명 여러 케이스 대응
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("admin_token");
+      localStorage.removeItem("token");
+      sessionStorage.clear();
+    } catch (e) {}
+
+    // 화면 전환 함수가 있으면 호출
+    try { if (typeof showLogin === "function") showLogin(); } catch (e) {}
+
+    // 무엇이든 꼬여도 무조건 로그인 화면으로 이동(강제)
+    // 같은 페이지로 보내면 로그인 카드가 떠야 정상
+    window.location.replace("/admin.html?logout=1");
+  }
+
+  // 전역으로도 노출(디버깅용)
+  window.doLogoutHard = doLogoutHard;
+
+  // DOM 로드 후 버튼 연결(버튼 id가 달라도 대비)
+  window.addEventListener("DOMContentLoaded", function () {
+    // 1) id 기반
+    var btn = document.getElementById("logoutBtn");
+    if (btn) {
+      btn.addEventListener("click", function (e) {
+        e.preventDefault();
+        doLogoutHard();
+      });
+      return;
+    }
+
+    // 2) 텍스트 기반(최후의 수단)
+    var candidates = Array.from(document.querySelectorAll("a,button"));
+    var target = candidates.find(el => (el.textContent || "").trim().includes("로그아웃"));
+    if (target) {
+      target.addEventListener("click", function (e) {
+        e.preventDefault();
+        doLogoutHard();
+      });
+    }
+  });
+})();
+</script>
+
 </body>
 </html>
