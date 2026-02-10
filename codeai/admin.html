@@ -112,9 +112,37 @@ function showApp(){
 }
 
 function doLogout(reason){
-  localStorage.removeItem(TOKEN_KEY);
-  showLogin(reason || "로그아웃 되었습니다.");
+  try{ localStorage.removeItem(TOKEN_KEY); }catch(e){}
+  // 로그인 화면으로 전환
+  try{ showLogin(reason || "로그아웃 되었습니다."); }catch(e){}
+  // 상태/캐시 꼬임 방지: 강제 이동
+  try{ window.location.replace("admin.html?logout=1"); }catch(e){}
 }
+
+// ---- 안전장치: 스택 오버플로우(무한 재귀) 발생 시 자동 로그아웃 + 로그인 화면 ----
+function isMaxCallStack(err){
+  const msg = (err && (err.message || err.toString())) ? String(err.message || err.toString()) : "";
+  return /Maximum call stack size exceeded/i.test(msg);
+}
+
+window.addEventListener("error", function(ev){
+  try{
+    const err = ev && (ev.error || ev);
+    if(isMaxCallStack(err)){
+      doLogout("오류가 발생하여 로그아웃되었습니다. (Maximum call stack)");
+    }
+  }catch(e){}
+});
+
+window.addEventListener("unhandledrejection", function(ev){
+  try{
+    const err = ev && (ev.reason || ev);
+    if(isMaxCallStack(err)){
+      doLogout("오류가 발생하여 로그아웃되었습니다. (Maximum call stack)");
+    }
+  }catch(e){}
+});
+
 
 function isAuthError(e){
   const m = (e && e.message) ? String(e.message) : "";
@@ -701,52 +729,5 @@ async function auth(path, opts){
 
 })();
 </script>
-<script>
-(function () {
-  function doLogoutHard() {
-    try {
-      // 토큰 키명 여러 케이스 대응
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("admin_token");
-      localStorage.removeItem("token");
-      sessionStorage.clear();
-    } catch (e) {}
-
-    // 화면 전환 함수가 있으면 호출
-    try { if (typeof showLogin === "function") showLogin(); } catch (e) {}
-
-    // 무엇이든 꼬여도 무조건 로그인 화면으로 이동(강제)
-    // 같은 페이지로 보내면 로그인 카드가 떠야 정상
-    window.location.replace("/admin.html?logout=1");
-  }
-
-  // 전역으로도 노출(디버깅용)
-  window.doLogoutHard = doLogoutHard;
-
-  // DOM 로드 후 버튼 연결(버튼 id가 달라도 대비)
-  window.addEventListener("DOMContentLoaded", function () {
-    // 1) id 기반
-    var btn = document.getElementById("logoutBtn");
-    if (btn) {
-      btn.addEventListener("click", function (e) {
-        e.preventDefault();
-        doLogoutHard();
-      });
-      return;
-    }
-
-    // 2) 텍스트 기반(최후의 수단)
-    var candidates = Array.from(document.querySelectorAll("a,button"));
-    var target = candidates.find(el => (el.textContent || "").trim().includes("로그아웃"));
-    if (target) {
-      target.addEventListener("click", function (e) {
-        e.preventDefault();
-        doLogoutHard();
-      });
-    }
-  });
-})();
-</script>
-
 </body>
 </html>
