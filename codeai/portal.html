@@ -22,7 +22,6 @@ canvas{width:100%;height:140px;}
 .badge-soft{background:#eef2ff;color:#374151;border:1px solid #e5e7eb;}
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
   </style>
-  <link rel="icon" href="assets/img/favicon.png" />
 </head>
 <body>
   <div class="container py-4">
@@ -33,7 +32,6 @@ canvas{width:100%;height:140px;}
       </div>
       <div class="text-end">
         <a href="index.html" class="btn btn-sm btn-outline-secondary">홈으로</a>
-        <button id="btnLogout" class="btn btn-sm btn-outline-danger ms-2">로그아웃</button>
       </div>
     </div>
 
@@ -76,40 +74,6 @@ canvas{width:100%;height:140px;}
 <script>
 (function(){
   const TOKEN_KEY = "codeai_portal_token";
-
-  function humanizeLoginError(e){
-    const code = e && (e.code || (e.data && e.data.code));
-    const msg = (e && e.message) ? e.message : "";
-    if(code==="INVALID_CREDENTIALS") return "입력 정보를 다시 확인해주세요.";
-    if(code==="NO_TOKEN") return "로그인이 필요합니다.";
-    if(code==="INVALID_TOKEN") return "세션이 만료되었습니다. 다시 로그인해주세요.";
-    return msg || "로그인에 실패했습니다.";
-  }
-
-  function doLogout(message){
-    localStorage.removeItem(TOKEN_KEY);
-    $("app").classList.add("d-none");
-    $("loginCard").classList.remove("d-none");
-    if(message) {
-      $("loginMsg").classList.remove("muted"); $("loginMsg").classList.add("text-danger");
-      $("loginMsg").textContent = message;
-    } else {
-      $("loginMsg").textContent = "";
-    }
-  }
-
-  async function auth(path, opts){
-    try{
-      return await auth(path, opts || { method:"GET" });
-    }catch(e){
-      if(e && e.status===401 && (e.code==="INVALID_TOKEN" || e.code==="NO_TOKEN")){
-        doLogout("세션이 만료되어 로그아웃되었습니다. 다시 로그인해주세요.");
-        throw e;
-      }
-      throw e;
-    }
-  }
-
   const $ = (id)=>document.getElementById(id);
   const esc = (s)=>String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
 
@@ -123,19 +87,18 @@ canvas{width:100%;height:140px;}
       localStorage.setItem(TOKEN_KEY, out.token);
       $("loginCard").classList.add("d-none");
       $("app").classList.remove("d-none");
-      $("loginMsg").classList.add("muted"); $("loginMsg").classList.remove("text-danger"); $("loginMsg").textContent = "";
+      $("loginMsg").textContent = "";
       await loadEnrollments();
     }catch(e){
-      $("loginMsg").classList.remove("muted"); $("loginMsg").classList.add("text-danger"); $("loginMsg").textContent = humanizeLoginError(e);
+      $("loginMsg").textContent = "로그인 실패: " + e.message;
     }
   }
   $("btnLogin").addEventListener("click", doLogin);
-  $("btnLogout").addEventListener("click", ()=>doLogout());
 
   async function loadEnrollments(){
     $("appMsg").textContent = "수강 목록 불러오는 중…";
     try{
-      const out = await auth("/api/v1/portal/enrollments", { method:"GET" });
+      const out = await CodeAI.authRequest("/api/v1/portal/enrollments", TOKEN_KEY, { method:"GET" });
       const list = out.enrollments || [];
       const sel = $("enrSel");
       sel.innerHTML = list.map(e=>{
@@ -154,7 +117,7 @@ canvas{width:100%;height:140px;}
     if(!eid) return;
     $("appMsg").textContent = "주간보고서 불러오는 중…";
     try{
-      const out = await auth(`/api/v1/portal/enrollments/${eid}/weekly-reports`, { method:"GET" });
+      const out = await CodeAI.authRequest(`/api/v1/portal/enrollments/${eid}/weekly-reports`, TOKEN_KEY, { method:"GET" });
       const list = out.reports || [];
       $("reports").innerHTML = (()=> {
         // sort ascending by week_start_date
@@ -616,7 +579,9 @@ paint();
     }
   })();
 })();
-
+</script>
+</body>
+</html>
 
 function renderComparison(sortedAll){
   const n = sortedAll.length;
@@ -735,7 +700,3 @@ function renderComparison(sortedAll){
 }
 
 
-
-</script>
-</body>
-</html>

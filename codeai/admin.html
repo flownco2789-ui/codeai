@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CodeAI 관리자</title>
+  <link rel="icon" href="assets/img/favicon.png" />
   <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <script src="codeai-config.js"></script>
   <script src="codeai-api.js"></script>
@@ -17,7 +18,6 @@
     .row-actions button { margin-right:.25rem; margin-bottom:.25rem; }
     .kv { display:grid; grid-template-columns: 120px 1fr; gap:.25rem .75rem; }
   </style>
-  <link rel="icon" href="assets/img/favicon.png" />
 </head>
 <body>
   <div class="container py-4">
@@ -28,7 +28,7 @@
       </div>
       <div class="text-end">
         <a href="index.html" class="btn btn-sm btn-outline-secondary">홈으로</a>
-        <button id="btnLogout" class="btn btn-sm btn-outline-danger ms-2">로그아웃</button>
+        <button id="btnLogout" class="btn btn-sm btn-outline-danger ms-2 d-none">로그아웃</button>
       </div>
     </div>
 
@@ -72,6 +72,66 @@
 (function(){
   const $ = (id)=>document.getElementById(id);
   const TOKEN_KEY = "codeai_admin_token";
+const TYPE_KO = {
+  "ANY":"무관",
+  "female":"여강사",
+  "male":"남강사",
+  "online":"온라인",
+  "offline":"대면",
+  "FEMALE":"여강사",
+  "MALE":"남강사"
+};
+const STATUS_KO = {
+  "PENDING":"대기",
+  "APPROVED":"승인",
+  "REJECTED":"거절",
+  "MATCHED":"매칭완료",
+  "CANCELED":"취소",
+  "pending":"대기",
+  "approved":"승인",
+  "rejected":"거절",
+  "matched":"매칭완료",
+  "canceled":"취소"
+};
+function toKo(map, v){
+  if(v===null||v===undefined||v==="") return "-";
+  return map[String(v)] || String(v);
+}
+
+function showLogin(msg){
+  $("loginCard").classList.remove("d-none");
+  $("app").classList.add("d-none");
+  $("btnLogout")?.classList.add("d-none");
+  if(msg) $("loginMsg").textContent = msg;
+}
+function showApp(){
+  $("loginCard").classList.add("d-none");
+  $("app").classList.remove("d-none");
+  $("btnLogout")?.classList.remove("d-none");
+  $("loginMsg").textContent = "";
+}
+
+function doLogout(reason){
+  localStorage.removeItem(TOKEN_KEY);
+  showLogin(reason || "로그아웃 되었습니다.");
+}
+
+function isAuthError(e){
+  const m = (e && e.message) ? String(e.message) : "";
+  return m==="NO_TOKEN" || m==="INVALID_TOKEN" || m.includes("INVALID_TOKEN") || m.includes("NO_TOKEN") || m.includes("Unauthorized") || m.includes("401");
+}
+
+async function auth(path, opts){
+  try{
+    return await auth(path, TOKEN_KEY, opts);
+  }catch(e){
+    if(isAuthError(e)){
+      doLogout("세션이 만료되어 로그아웃되었습니다. 다시 로그인해주세요.");
+      throw e;
+    }
+    throw e;
+  }
+}
   const esc = (s)=>String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
 
   function setActiveTab(name){
@@ -104,16 +164,14 @@
         body: JSON.stringify({ email: $("email").value.trim(), password: $("password").value })
       });
       localStorage.setItem(TOKEN_KEY, out.token);
-      $("loginCard").classList.add("d-none");
-      $("app").classList.remove("d-none");
-      $("loginMsg").classList.add("muted"); $("loginMsg").classList.remove("text-danger"); $("loginMsg").textContent = "";
+      showApp();
+      $("loginMsg").textContent = "";
       await loadEnrollments();
     }catch(e){
-      $("loginMsg").classList.remove("muted"); $("loginMsg").classList.add("text-danger"); $("loginMsg").textContent = humanizeLoginError(e);
+      $("loginMsg").textContent = "로그인 실패: " + (e.message || "아이디/비밀번호를 확인해주세요.");
     }
   }
   $("btnLogin").addEventListener("click", login);
-  $("btnLogout").addEventListener("click", ()=>doLogout());
 
   // ---------- Enrollments / Assign / Portal code ----------
   async function loadEnrollments(){
@@ -150,7 +208,7 @@
       const q = searchInput.value.trim();
       document.getElementById("enrMsg").textContent = "불러오는 중…";
       try{
-        const out = await auth("/api/v1/admin/enrollments" + (q ? ("?search="+encodeURIComponent(q)) : ""), { method:"GET" });
+        const out = await auth("/api/v1/admin/enrollments" + (q ? ("?search="+encodeURIComponent(q)) : ""), TOKEN_KEY, { method:"GET" });
         const list = out.list || [];
         const tb = document.getElementById("enrBody");
         tb.innerHTML = list.map(r=>{
@@ -212,7 +270,7 @@
 
       if(act==="logs"){
         try{
-          const out = await auth(`/api/v1/admin/enrollments/${eid}/portal-code/logs`, { method:"GET" });
+          const out = await auth(`/api/v1/admin/enrollments/${eid}/portal-code/logs`, TOKEN_KEY, { method:"GET" });
           const logs = out.logs || [];
           panel.innerHTML = `
             <div class="d-flex justify-content-between align-items-center mb-2">
@@ -242,7 +300,7 @@
 
       if(act==="reissue"){
         try{
-          const out = await auth(`/api/v1/admin/enrollments/${eid}/portal-code/reissue`, { method:"POST", body: "{}" });
+          const out = await auth(`/api/v1/admin/enrollments/${eid}/portal-code/reissue`, TOKEN_KEY, { method:"POST", body: "{}" });
           panel.innerHTML = `
             <div class="d-flex justify-content-between align-items-center mb-2">
               <div><b>재발급 완료</b></div>
@@ -262,7 +320,7 @@
 
       if(act==="assign"){
         try{
-          const out = await auth(`/api/v1/admin/instructors`, { method:"GET" });
+          const out = await auth(`/api/v1/admin/instructors`, TOKEN_KEY, { method:"GET" });
           const list = out.instructors || [];
           panel.innerHTML = `
             <div class="d-flex justify-content-between align-items-center mb-2">
@@ -290,14 +348,14 @@
           const sInput = document.getElementById(`assignSearch-${eid}`);
           sInput.addEventListener("input", async ()=>{
             const q = sInput.value.trim();
-            const o2 = await auth(`/api/v1/admin/instructors` + (q ? ("?search="+encodeURIComponent(q)) : ""), { method:"GET" });
+            const o2 = await auth(`/api/v1/admin/instructors` + (q ? ("?search="+encodeURIComponent(q)) : ""), TOKEN_KEY, { method:"GET" });
             const l2 = o2.instructors || [];
             sel.innerHTML = l2.map(i=>`<option value="${i.id}">${esc(i.name)} ${i.is_featured ? "[메인]" : ""} (${esc(i.email||"")})</option>`).join("");
           });
           document.getElementById(`assignBtn-${eid}`).addEventListener("click", async ()=>{
             document.getElementById(`assignMsg-${eid}`).textContent = "배정 중…";
             try{
-              await auth(`/api/v1/admin/enrollments/${eid}/assign-instructor`, {
+              await auth(`/api/v1/admin/enrollments/${eid}/assign-instructor`, TOKEN_KEY, {
                 method:"POST",
                 body: JSON.stringify({ instructorId: Number(sel.value) })
               });
@@ -345,13 +403,13 @@
       const q = document.getElementById("insSearch").value.trim();
       document.getElementById("insMsg").textContent = "불러오는 중…";
       try{
-        const out = await auth(`/api/v1/admin/instructors` + (q ? ("?search="+encodeURIComponent(q)) : ""), { method:"GET" });
+        const out = await auth(`/api/v1/admin/instructors` + (q ? ("?search="+encodeURIComponent(q)) : ""), TOKEN_KEY, { method:"GET" });
         const list = out.instructors || [];
         document.getElementById("insBody").innerHTML = list.map(i=>`
           <tr>
             <td class="mono">${i.id}</td>
             <td>
-              <div><a href="admin-instructor-detail.html?id=${encodeURIComponent(i.id)}" class="link-primary fw-bold">${esc(i.name)}</a></div>
+              <div><a href="admin-instructor-detail.html?id=${encodeURIComponent(i.id)}"><b>${esc(i.name)}</b></a></div>
               <div class="small muted mono">${esc(i.email||"")}</div>
             </td>
             <td class="small">${esc(i.instructor_type||"-")}</td>
@@ -375,7 +433,7 @@
       if(!cb) return;
       const id = cb.getAttribute("data-feature-id");
       try{
-        await auth(`/api/v1/admin/instructors/${id}/feature`, {
+        await auth(`/api/v1/admin/instructors/${id}/feature`, TOKEN_KEY, {
           method:"PUT",
           body: JSON.stringify({ isFeatured: cb.checked ? 1 : 0 })
         });
@@ -432,7 +490,7 @@
         const qs = [];
         if(st) qs.push("status="+encodeURIComponent(st));
         if(q) qs.push("search="+encodeURIComponent(q));
-        const out = await auth(`/api/v1/admin/weekly-reports` + (qs.length ? ("?"+qs.join("&")) : ""), { method:"GET" });
+        const out = await auth(`/api/v1/admin/weekly-reports` + (qs.length ? ("?"+qs.join("&")) : ""), TOKEN_KEY, { method:"GET" });
         const list = out.list || [];
         document.getElementById("wrBody").innerHTML = list.map(r=>{
           const metrics = r.metrics_json ? (typeof r.metrics_json === "string" ? JSON.parse(r.metrics_json) : r.metrics_json) : null;
@@ -496,7 +554,7 @@
         const status = ap ? "APPROVED" : "REJECTED";
         const note = prompt(status==="APPROVED" ? "승인 메모(선택)" : "반려 사유(선택)", "") || "";
         try{
-          await auth(`/api/v1/admin/weekly-reports/${id}/review`, {
+          await auth(`/api/v1/admin/weekly-reports/${id}/review`, TOKEN_KEY, {
             method:"POST",
             body: JSON.stringify({ status, note })
           });
@@ -514,7 +572,7 @@
     const wrap = $("tab-reports");
     wrap.innerHTML = `<div class="muted small mb-2">기존 PROJECT/ALGORITHM 리포트 검수</div><div id="repMsg" class="small muted">불러오는 중…</div>`;
     try{
-      const out = await auth("/api/v1/admin/reports", { method:"GET" });
+      const out = await auth("/api/v1/admin/reports", TOKEN_KEY, { method:"GET" });
       const list = out.list || [];
       wrap.innerHTML = `
         <div class="small muted mb-2">총 ${list.length}건</div>
@@ -549,7 +607,7 @@
       const status = a ? "APPROVED" : "REJECTED";
       const note = prompt(status==="APPROVED" ? "승인 메모(선택)" : "반려 사유(선택)", "") || "";
       try{
-        await auth(`/api/v1/admin/reports/${id}/review`, { method:"PUT", body: JSON.stringify({ status, note }) });
+        await auth(`/api/v1/admin/reports/${id}/review`, TOKEN_KEY, { method:"PUT", body: JSON.stringify({ status, note }) });
         await loadReports();
       }catch(err){
         alert("실패: " + err.message);
@@ -562,7 +620,7 @@
     const wrap = $("tab-instApps");
     wrap.innerHTML = `<div class="muted small mb-2">강사 지원서 검수</div><div class="small muted">불러오는 중…</div>`;
     try{
-      const out = await auth("/api/v1/admin/instructor-applications", { method:"GET" });
+      const out = await auth("/api/v1/admin/instructor-applications", TOKEN_KEY, { method:"GET" });
       const list = out.list || [];
       wrap.innerHTML = `
         <div class="small muted mb-2">총 ${list.length}건</div>
@@ -573,10 +631,10 @@
               ${list.map(r=>`
                 <tr>
                   <td class="mono">${r.id}</td>
-                  <td><a href="admin-instructor-app-detail.html?id=${encodeURIComponent(r.id)}" class="link-primary">${esc(r.name)}</a></td>
+                  <td><a href="admin-instructor-app-detail.html?id=${encodeURIComponent(r.id)}">${esc(r.name)}</a></td>
                   <td class="mono small">${esc(r.phone)}</td>
                   <td class="small">${esc(r.instructor_type||"-")}</td>
-                  <td>${esc(koStatus(r.status))}</td>
+                  <td>${esc(toKo(STATUS_KO, r.status))}</td>
                   <td>
                     <button class="btn btn-sm btn-success smallbtn" data-ia="${r.id}">승인</button>
                     <button class="btn btn-sm btn-danger smallbtn" data-ir="${r.id}">반려</button>
@@ -594,7 +652,7 @@
         const id = (ap||rj).getAttribute(ap ? "data-ia":"data-ir");
         const status = ap ? "APPROVED" : "REJECTED";
         const note = prompt(status==="APPROVED" ? "승인 메모(선택)" : "반려 사유(선택)", "") || "";
-        await auth(`/api/v1/admin/instructor-applications/${id}/review`, { method:"PUT", body: JSON.stringify({ status, note }) });
+        await auth(`/api/v1/admin/instructor-applications/${id}/review`, TOKEN_KEY, { method:"PUT", body: JSON.stringify({ status, note }) });
         await loadInstructorApps();
       };
     }catch(e){
@@ -607,7 +665,7 @@
     const wrap = $("tab-students");
     wrap.innerHTML = `<div class="muted small mb-2">학생 신청 목록</div><div class="small muted">불러오는 중…</div>`;
     try{
-      const out = await auth("/api/v1/admin/student-applications", { method:"GET" });
+      const out = await auth("/api/v1/admin/student-applications", TOKEN_KEY, { method:"GET" });
       const list = out.list || [];
       wrap.innerHTML = `
         <div class="small muted mb-2">총 ${list.length}건</div>
@@ -618,10 +676,10 @@
               ${list.map(r=>`
                 <tr>
                   <td class="mono">${r.id}</td>
-                  <td><a href="admin-instructor-app-detail.html?id=${encodeURIComponent(r.id)}" class="link-primary">${esc(r.name)}</a></td>
+                  <td><a href="admin-student-detail.html?id=${encodeURIComponent(r.id)}">${esc(r.name)}</a></td>
                   <td class="mono small">${esc(r.phone)}</td>
-                  <td class="small">${esc(koPreferred(r.preferred_instructor_type||"-"))}</td>
-                  <td>${esc(koStatus(r.status))}</td>
+                  <td class="small">${esc(toKo(TYPE_KO, r.preferred_instructor_type||"-"))}</td>
+                  <td>${esc(toKo(STATUS_KO, r.status))}</td>
                 </tr>
               `).join("")}
             </tbody>
@@ -636,8 +694,7 @@
   // Auto-login if token exists
   (async ()=>{
     if(localStorage.getItem(TOKEN_KEY)){
-      $("loginCard").classList.add("d-none");
-      $("app").classList.remove("d-none");
+      showApp();
       await loadEnrollments();
     }
   })();
