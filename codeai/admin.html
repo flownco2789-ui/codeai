@@ -16,52 +16,61 @@
     .smallbtn { padding:.25rem .5rem; font-size:.85rem; }
     .tabpane { padding-top: 1rem; }
     .row-actions button { margin-right:.25rem; margin-bottom:.25rem; }
-    .kv { display:grid; grid-template-columns: 120px 1fr; gap:.25rem .75rem; }
+    .kv { display:grid; grid-template-columns: 140px 1fr; gap:.35rem .75rem; }
+    .kv div:nth-child(odd){ color:#6c757d; }
+    .avatar { width:64px; height:64px; border-radius:12px; object-fit:cover; border:1px solid #e6e8ef; background:#fff; }
+    .avatar-sm { width:36px; height:36px; border-radius:10px; object-fit:cover; border:1px solid #e6e8ef; background:#fff; }
+    .table td, .table th { vertical-align: middle; }
+    .navbtn { cursor:pointer; }
+    .badge-soft { background:#eef2ff; color:#3730a3; border:1px solid #e0e7ff; }
   </style>
 </head>
 <body>
   <div class="container py-4">
+
     <div class="d-flex align-items-center justify-content-between mb-3">
-      <div>
-        <h3 class="mb-1">관리자 페이지 (A안)</h3>
-        <div class="muted">검색/배정 · 메인강사 · 학부모코드 로그/재발급 · 주간 학습보고서 검수</div>
+      <div class="d-flex align-items-center">
+        <h3 class="mb-0 me-2">관리자</h3>
+        <span class="badge badge-soft">CodeAI</span>
       </div>
-      <div class="text-end">
-        <a href="index.html" class="btn btn-sm btn-outline-secondary">홈으로</a>
+      <div class="d-flex align-items-center">
         <button id="btnLogout" class="btn btn-sm btn-outline-danger ms-2 d-none">로그아웃</button>
       </div>
     </div>
 
-    <div id="loginCard" class="card p-3 mb-3">
-      <div class="row g-2 align-items-end">
-        <div class="col-md-5">
+    <div id="loginCard" class="card p-4 mb-3">
+      <h5 class="mb-3">관리자 로그인</h5>
+      <div class="row g-2">
+        <div class="col-md-4">
           <label class="form-label">이메일</label>
-          <input id="email" class="form-control" placeholder="superadmin@codeai.co.kr" />
+          <input id="loginEmail" class="form-control" placeholder="admin@example.com" />
         </div>
-        <div class="col-md-5">
+        <div class="col-md-4">
           <label class="form-label">비밀번호</label>
-          <input id="password" class="form-control" type="password" placeholder="admin1234!" />
+          <input id="loginPassword" type="password" class="form-control" placeholder="********" />
         </div>
-        <div class="col-md-2 d-grid">
-          <button id="btnLogin" class="btn btn-primary">로그인</button>
+        <div class="col-md-4 d-flex align-items-end">
+          <button id="btnLogin" class="btn btn-primary w-100">로그인</button>
         </div>
       </div>
-      <div id="loginMsg" class="small muted mt-2"></div>
+      <div class="mt-3 small text-danger" id="loginMsg"></div>
     </div>
 
-    <div id="app" class="card p-3 d-none">
-      <ul class="nav nav-pills gap-2">
-        <li class="nav-item"><button class="nav-link active" data-tab="enrollments">수강/배정</button></li>
-        <li class="nav-item"><button class="nav-link" data-tab="instructors">강사</button></li>
-        <li class="nav-item"><button class="nav-link" data-tab="weekly">주간보고서</button></li>
-        <li class="nav-item"><button class="nav-link" data-tab="reports">기존리포트</button></li>
-        <li class="nav-item"><button class="nav-link" data-tab="instApps">강사지원</button></li>
-        <li class="nav-item"><button class="nav-link" data-tab="students">학생신청</button></li>
-      </ul>
+    <div id="app" class="card p-4 d-none">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <button class="btn btn-outline-secondary btn-sm navbtn" data-tab="dashboard">대시보드</button>
+        <button class="btn btn-outline-secondary btn-sm navbtn" data-tab="instructors">강사</button>
+        <button class="btn btn-outline-secondary btn-sm navbtn" data-tab="instApps">강사지원</button>
+        <button class="btn btn-outline-secondary btn-sm navbtn" data-tab="enrollments">학생신청</button>
+        <button class="btn btn-outline-secondary btn-sm navbtn" data-tab="reports">보고서 승인</button>
+        <button class="btn btn-outline-secondary btn-sm navbtn" data-tab="students">학생관리</button>
+      </div>
 
-      <div id="tab-enrollments" class="tabpane"></div>
+      <hr class="my-3"/>
+
+      <div id="tab-dashboard" class="tabpane"></div>
       <div id="tab-instructors" class="tabpane d-none"></div>
-      <div id="tab-weekly" class="tabpane d-none"></div>
+      <div id="tab-enrollments" class="tabpane d-none"></div>
       <div id="tab-reports" class="tabpane d-none"></div>
       <div id="tab-instApps" class="tabpane d-none"></div>
       <div id="tab-students" class="tabpane d-none"></div>
@@ -72,662 +81,451 @@
 (function(){
   const $ = (id)=>document.getElementById(id);
   const TOKEN_KEY = "codeai_admin_token";
-const TYPE_KO = {
-  "ANY":"무관",
-  "female":"여강사",
-  "male":"남강사",
-  "online":"온라인",
-  "offline":"대면",
-  "FEMALE":"여강사",
-  "MALE":"남강사"
-};
-const STATUS_KO = {
-  "PENDING":"대기",
-  "APPROVED":"승인",
-  "REJECTED":"거절",
-  "MATCHED":"매칭완료",
-  "CANCELED":"취소",
-  "pending":"대기",
-  "approved":"승인",
-  "rejected":"거절",
-  "matched":"매칭완료",
-  "canceled":"취소"
-};
-function toKo(map, v){
-  if(v===null||v===undefined||v==="") return "-";
-  return map[String(v)] || String(v);
-}
 
-function showLogin(msg){
-  $("loginCard").classList.remove("d-none");
-  $("app").classList.add("d-none");
-  $("btnLogout")?.classList.add("d-none");
-  if(msg) $("loginMsg").textContent = msg;
-}
-function showApp(){
-  $("loginCard").classList.add("d-none");
-  $("app").classList.remove("d-none");
-  $("btnLogout")?.classList.remove("d-none");
-  $("loginMsg").textContent = "";
-}
+  const TYPE_KO = {
+    "ANY":"무관",
+    "female":"여강사",
+    "male":"남강사",
+    "online":"온라인",
+    "offline":"대면",
+    "FEMALE":"여강사",
+    "MALE":"남강사"
+  };
+  const STATUS_KO = {
+    "PENDING":"대기",
+    "APPROVED":"승인",
+    "REJECTED":"거절",
+    "MATCHED":"매칭완료",
+    "CANCELED":"취소",
+    "pending":"대기",
+    "approved":"승인",
+    "rejected":"거절",
+    "matched":"매칭완료",
+    "canceled":"취소"
+  };
+  function toKo(map, v){
+    if(v===null||v===undefined||v==="") return "-";
+    return map[String(v)] || String(v);
+  }
 
-function doLogout(reason){
-  try{ localStorage.removeItem(TOKEN_KEY); }catch(e){}
-  // 로그인 화면으로 전환
-  try{ showLogin(reason || "로그아웃 되었습니다."); }catch(e){}
-  // 상태/캐시 꼬임 방지: 강제 이동
-  try{ window.location.replace("admin.html?logout=1"); }catch(e){}
-}
+  function showLogin(msg){
+    $("loginCard").classList.remove("d-none");
+    $("app").classList.add("d-none");
+    $("btnLogout")?.classList.add("d-none");
+    if(msg) $("loginMsg").textContent = msg;
+  }
+  function showApp(){
+    $("loginCard").classList.add("d-none");
+    $("app").classList.remove("d-none");
+    $("btnLogout")?.classList.remove("d-none");
+    $("loginMsg").textContent = "";
+  }
 
-// ---- 안전장치: 스택 오버플로우(무한 재귀) 발생 시 자동 로그아웃 + 로그인 화면 ----
-function isMaxCallStack(err){
-  const msg = (err && (err.message || err.toString())) ? String(err.message || err.toString()) : "";
-  return /Maximum call stack size exceeded/i.test(msg);
-}
+  function doLogout(reason){
+    try{ localStorage.removeItem(TOKEN_KEY); }catch(e){}
+    // 로그인 화면으로 전환
+    try{ showLogin(reason || "로그아웃 되었습니다."); }catch(e){}
+    // 상태/캐시 꼬임 방지: 강제 이동
+    try{ window.location.replace("admin.html?logout=1"); }catch(e){}
+  }
 
-window.addEventListener("error", function(ev){
-  try{
-    const err = ev && (ev.error || ev);
-    if(isMaxCallStack(err)){
-      doLogout("오류가 발생하여 로그아웃되었습니다. (Maximum call stack)");
-    }
-  }catch(e){}
-});
+  // ---- 안전장치: 스택 오버플로우(무한 재귀) 발생 시 자동 로그아웃 + 로그인 화면 ----
+  function isMaxCallStack(err){
+    const msg = (err && (err.message || err.toString())) ? String(err.message || err.toString()) : "";
+    return /Maximum call stack size exceeded/i.test(msg);
+  }
 
-window.addEventListener("unhandledrejection", function(ev){
-  try{
-    const err = ev && (ev.reason || ev);
-    if(isMaxCallStack(err)){
-      doLogout("오류가 발생하여 로그아웃되었습니다. (Maximum call stack)");
-    }
-  }catch(e){}
-});
+  window.addEventListener("error", function(ev){
+    try{
+      const err = ev && (ev.error || ev);
+      if(isMaxCallStack(err)){
+        doLogout("오류가 발생하여 로그아웃되었습니다. (Maximum call stack)");
+      }
+    }catch(e){}
+  });
 
+  window.addEventListener("unhandledrejection", function(ev){
+    try{
+      const err = ev && (ev.reason || ev);
+      if(isMaxCallStack(err)){
+        doLogout("오류가 발생하여 로그아웃되었습니다. (Maximum call stack)");
+      }
+    }catch(e){}
+  });
 
-function isAuthError(e){
-  const m = (e && e.message) ? String(e.message) : "";
-  return m==="NO_TOKEN" || m==="INVALID_TOKEN" || m.includes("INVALID_TOKEN") || m.includes("NO_TOKEN") || m.includes("Unauthorized") || m.includes("401");
-}
+  function isAuthError(e){
+    const m = (e && e.message) ? String(e.message) : "";
+    return m==="NO_TOKEN" || m==="INVALID_TOKEN" || m.includes("INVALID_TOKEN") ||
+           (e && e.code && (e.code==="NO_TOKEN" || e.code==="INVALID_TOKEN")) ||
+           (e && e.status===401);
+  }
 
-async function auth(path, opts){
-  try{
-    return await auth(path, TOKEN_KEY, opts);
-  }catch(e){
-    if(isAuthError(e)){
-      doLogout("세션이 만료되어 로그아웃되었습니다. 다시 로그인해주세요.");
+  function getToken(){
+    try{ return localStorage.getItem(TOKEN_KEY) || ""; }catch(e){ return ""; }
+  }
+
+  async function authRequest(method, path, body){
+    const token = getToken();
+    if(!token) throw new Error("NO_TOKEN");
+    try{
+      return await CodeAI.authRequest(method, path, token, body);
+    }catch(e){
+      if(isAuthError(e)) {
+        doLogout("세션이 만료되어 로그아웃되었습니다. 다시 로그인해주세요.");
+      }
       throw e;
     }
-    throw e;
   }
-}
-  const esc = (s)=>String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
 
-  function setActiveTab(name){
-    ["enrollments","instructors","weekly","reports","instApps","students"].forEach(t=>{
-      $("tab-"+t).classList.add("d-none");
-      document.querySelector(`button[data-tab="${t}"]`).classList.remove("active");
+  function setActiveTab(tab){
+    const tabs = ["dashboard","instructors","instApps","enrollments","reports","students"];
+    tabs.forEach(t=>{
+      const el = $("tab-"+t);
+      if(!el) return;
+      if(t===tab) el.classList.remove("d-none");
+      else el.classList.add("d-none");
     });
-    $("tab-"+name).classList.remove("d-none");
-    document.querySelector(`button[data-tab="${name}"]`).classList.add("active");
   }
 
-  document.querySelectorAll("button[data-tab]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      const name = btn.getAttribute("data-tab");
-      setActiveTab(name);
-      if(name==="enrollments") loadEnrollments();
-      if(name==="instructors") loadInstructors();
-      if(name==="weekly") loadWeekly();
-      if(name==="reports") loadReports();
-      if(name==="instApps") loadInstructorApps();
-      if(name==="students") loadStudents();
+  async function renderDashboard(){
+    const el = $("tab-dashboard");
+    el.innerHTML = `
+      <div class="d-flex align-items-center justify-content-between">
+        <div>
+          <h5 class="mb-1">요약</h5>
+          <div class="muted small">최근 신청/보고서 상태 요약</div>
+        </div>
+        <div class="small muted">관리자</div>
+      </div>
+      <hr/>
+      <div class="muted">로딩중...</div>
+    `;
+
+    try{
+      const stats = await authRequest("GET", "/api/v1/public/stats");
+      el.innerHTML = `
+        <div class="row g-3">
+          <div class="col-md-4"><div class="card p-3"><div class="muted small">강사 수</div><div class="fs-4">${stats?.instructors ?? "-"}</div></div></div>
+          <div class="col-md-4"><div class="card p-3"><div class="muted small">학생 신청</div><div class="fs-4">${stats?.enrollments ?? "-"}</div></div></div>
+          <div class="col-md-4"><div class="card p-3"><div class="muted small">주간 보고서</div><div class="fs-4">${stats?.weeklyReports ?? "-"}</div></div></div>
+        </div>
+      `;
+    }catch(e){
+      el.innerHTML = `<div class="text-danger small">대시보드 로딩 실패: ${(e && e.message) ? e.message : e}</div>`;
+    }
+  }
+
+  async function renderInstructors(){
+    const el = $("tab-instructors");
+    el.innerHTML = `<div class="muted">로딩중...</div>`;
+    try{
+      const list = await authRequest("GET", "/api/v1/admin/instructors");
+      const rows = (list || []).map(x=>{
+        const photo = x.photo_url ? `<img class="avatar-sm me-2" src="${x.photo_url}"/>` : `<div class="avatar-sm me-2" style="display:inline-block;"></div>`;
+        return `
+          <tr>
+            <td class="mono small">${x.id}</td>
+            <td>
+              <a href="admin-instructor-detail.html?id=${encodeURIComponent(x.id)}" class="text-decoration-none">
+                ${photo}<strong>${x.name || "-"}</strong>
+              </a>
+              <div class="small muted">${x.email || ""}</div>
+            </td>
+            <td>${x.phone || "-"}</td>
+            <td>${x.region || "-"}</td>
+            <td>${x.type || "-"}</td>
+          </tr>
+        `;
+      }).join("");
+
+      el.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">강사 목록</h5>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead><tr>
+              <th>ID</th><th>강사</th><th>전화</th><th>지역</th><th>타입</th>
+            </tr></thead>
+            <tbody>${rows || `<tr><td colspan="5" class="muted">데이터 없음</td></tr>`}</tbody>
+          </table>
+        </div>
+      `;
+    }catch(e){
+      el.innerHTML = `<div class="text-danger small">강사 로딩 실패: ${(e && e.message) ? e.message : e}</div>`;
+    }
+  }
+
+  async function renderInstructorApps(){
+    const el = $("tab-instApps");
+    el.innerHTML = `<div class="muted">로딩중...</div>`;
+    try{
+      const list = await authRequest("GET", "/api/v1/admin/instructor-applications");
+      const rows = (list || []).map(x=>{
+        return `
+          <tr>
+            <td class="mono small">${x.id}</td>
+            <td>
+              <a href="admin-instructor-app-detail.html?id=${encodeURIComponent(x.id)}" class="text-decoration-none">
+                <strong>${x.name || "-"}</strong>
+              </a>
+              <div class="small muted">${x.email || ""}</div>
+            </td>
+            <td>${x.phone || "-"}</td>
+            <td>${x.region || "-"}</td>
+            <td>${x.status || "-"}</td>
+          </tr>
+        `;
+      }).join("");
+
+      el.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">강사지원</h5>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead><tr>
+              <th>ID</th><th>지원자</th><th>전화</th><th>지역</th><th>상태</th>
+            </tr></thead>
+            <tbody>${rows || `<tr><td colspan="5" class="muted">데이터 없음</td></tr>`}</tbody>
+          </table>
+        </div>
+      `;
+    }catch(e){
+      el.innerHTML = `<div class="text-danger small">강사지원 로딩 실패: ${(e && e.message) ? e.message : e}</div>`;
+    }
+  }
+
+  async function renderEnrollments(){
+    const el = $("tab-enrollments");
+    el.innerHTML = `<div class="muted">로딩중...</div>`;
+    try{
+      const list = await authRequest("GET", "/api/v1/admin/student-applications");
+      const rows = (list || []).map(x=>{
+        const preferred = toKo(TYPE_KO, x.preferred_instructor_type || x.preferredInstructorType || x.preferred_type);
+        const st = toKo(STATUS_KO, x.status);
+        return `
+          <tr>
+            <td class="mono small">${x.id}</td>
+            <td>
+              <a href="admin-student-detail.html?id=${encodeURIComponent(x.id)}" class="text-decoration-none">
+                <strong>${x.name || "-"}</strong>
+              </a>
+              <div class="small muted">${x.phone || ""}</div>
+            </td>
+            <td>${x.target || "-"}</td>
+            <td>${preferred}</td>
+            <td>${st}</td>
+          </tr>
+        `;
+      }).join("");
+
+      el.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">학생 신청</h5>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead><tr>
+              <th>ID</th><th>학생</th><th>대상</th><th>선호타입</th><th>상태</th>
+            </tr></thead>
+            <tbody>${rows || `<tr><td colspan="5" class="muted">데이터 없음</td></tr>`}</tbody>
+          </table>
+        </div>
+      `;
+    }catch(e){
+      el.innerHTML = `<div class="text-danger small">학생신청 로딩 실패: ${(e && e.message) ? e.message : e}</div>`;
+    }
+  }
+
+  async function renderReports(){
+    const el = $("tab-reports");
+    el.innerHTML = `<div class="muted">로딩중...</div>`;
+    try{
+      const list = await authRequest("GET", "/api/v1/admin/reports");
+      const rows = (list || []).map(x=>{
+        return `
+          <tr>
+            <td class="mono small">${x.id}</td>
+            <td>${x.enrollment_id || "-"}</td>
+            <td>${x.week_start || "-"}</td>
+            <td>${x.status || "-"}</td>
+            <td class="row-actions">
+              <button class="btn btn-sm btn-outline-success smallbtn" data-approve="${x.id}">승인</button>
+              <button class="btn btn-sm btn-outline-danger smallbtn" data-reject="${x.id}">반려</button>
+            </td>
+          </tr>
+        `;
+      }).join("");
+
+      el.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">보고서 승인</h5>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead><tr>
+              <th>ID</th><th>등록ID</th><th>주차</th><th>상태</th><th>처리</th>
+            </tr></thead>
+            <tbody>${rows || `<tr><td colspan="5" class="muted">데이터 없음</td></tr>`}</tbody>
+          </table>
+        </div>
+      `;
+
+      // 이벤트 바인딩
+      el.querySelectorAll("[data-approve]").forEach(btn=>{
+        btn.addEventListener("click", async ()=>{
+          const id = btn.getAttribute("data-approve");
+          try{
+            await authRequest("PUT", `/api/v1/admin/reports/${id}/review`, { action:"approve" });
+            await renderReports();
+          }catch(e){
+            alert("승인 실패: " + ((e && e.message) ? e.message : e));
+          }
+        });
+      });
+      el.querySelectorAll("[data-reject]").forEach(btn=>{
+        btn.addEventListener("click", async ()=>{
+          const id = btn.getAttribute("data-reject");
+          try{
+            await authRequest("PUT", `/api/v1/admin/reports/${id}/review`, { action:"reject" });
+            await renderReports();
+          }catch(e){
+            alert("반려 실패: " + ((e && e.message) ? e.message : e));
+          }
+        });
+      });
+
+    }catch(e){
+      el.innerHTML = `<div class="text-danger small">보고서 로딩 실패: ${(e && e.message) ? e.message : e}</div>`;
+    }
+  }
+
+  async function renderStudents(){
+    const el = $("tab-students");
+    el.innerHTML = `<div class="muted">준비중...</div>`;
+  }
+
+  async function refreshTab(tab){
+    if(tab==="dashboard") return renderDashboard();
+    if(tab==="instructors") return renderInstructors();
+    if(tab==="instApps") return renderInstructorApps();
+    if(tab==="enrollments") return renderEnrollments();
+    if(tab==="reports") return renderReports();
+    if(tab==="students") return renderStudents();
+  }
+
+  // 네비게이션
+  document.querySelectorAll(".navbtn").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const tab = btn.getAttribute("data-tab");
+      setActiveTab(tab);
+      await refreshTab(tab);
     });
   });
 
-  async function login(){
-    $("loginMsg").textContent = "로그인 중…";
+  // 로그인
+  $("btnLogin").addEventListener("click", async ()=>{
+    const email = $("loginEmail").value.trim();
+    const password = $("loginPassword").value.trim();
+    $("loginMsg").textContent = "";
+
     try{
-      const out = await CodeAI.request("/api/v1/admin/auth/login", {
-        method:"POST",
-        body: JSON.stringify({ email: $("email").value.trim(), password: $("password").value })
-      });
-      localStorage.setItem(TOKEN_KEY, out.token);
-      showApp();
-      $("loginMsg").textContent = "";
-      await loadEnrollments();
+      const r = await CodeAI.request("POST", "/api/v1/admin/login", { email, password });
+      if(r && r.token){
+        localStorage.setItem(TOKEN_KEY, r.token);
+        showApp();
+        setActiveTab("dashboard");
+        await renderDashboard();
+      }else{
+        showLogin("로그인 실패: 토큰이 없습니다.");
+      }
     }catch(e){
-      $("loginMsg").textContent = "로그인 실패: " + (e.message || "아이디/비밀번호를 확인해주세요.");
+      const msg = (e && e.message) ? e.message : "로그인 실패";
+      showLogin(msg);
     }
-  }
-  $("btnLogin").addEventListener("click", login);
+  });
 
-  // ---------- Enrollments / Assign / Portal code ----------
-  async function loadEnrollments(){
-    const wrap = $("tab-enrollments");
-    wrap.innerHTML = `
-      <div class="d-flex gap-2 align-items-end mb-2">
-        <div class="flex-grow-1">
-          <label class="form-label mb-1">통합검색(학생/전화/강사/이메일)</label>
-          <input id="enrSearch" class="form-control" placeholder="예) 학생01, 010, teacher01, 강사" />
-        </div>
-        <div>
-          <button id="btnEnrSearch" class="btn btn-outline-primary">검색</button>
-        </div>
-      </div>
-      <div id="enrMsg" class="small muted mb-2"></div>
-      <div class="table-responsive">
-        <table class="table table-sm align-middle">
-          <thead>
-            <tr class="muted">
-              <th style="width:70px">ID</th>
-              <th>학생</th>
-              <th>강사</th>
-              <th style="width:120px">상태</th>
-              <th style="width:160px">학부모코드</th>
-              <th style="width:260px">액션</th>
-            </tr>
-          </thead>
-          <tbody id="enrBody"></tbody>
-        </table>
-      </div>
-    `;
-    const searchInput = document.getElementById("enrSearch");
-    const run = async ()=>{
-      const q = searchInput.value.trim();
-      document.getElementById("enrMsg").textContent = "불러오는 중…";
-      try{
-        const out = await auth("/api/v1/admin/enrollments" + (q ? ("?search="+encodeURIComponent(q)) : ""), TOKEN_KEY, { method:"GET" });
-        const list = out.list || [];
-        const tb = document.getElementById("enrBody");
-        tb.innerHTML = list.map(r=>{
-          const issued = r.last_code_issued_at ? new Date(r.last_code_issued_at).toLocaleString() : "-";
-          return `
-            <tr data-eid="${r.id}">
-              <td class="mono">${r.id}</td>
-              <td>
-                <div><b>${esc(r.student_name)}</b></div>
-                <div class="small muted mono">${esc(r.student_phone || "")}</div>
-              </td>
-              <td>
-                <div><b>${esc(r.instructor_name)}</b> ${r.is_featured ? '<span class="badge text-bg-warning">메인</span>' : ''}</div>
-                <div class="small muted mono">${esc(r.instructor_email || "")}</div>
-              </td>
-              <td><span class="badge text-bg-secondary">${esc(r.status)}</span></td>
-              <td class="small">
-                <div class="muted">최근 발급</div>
-                <div class="mono">${esc(issued)}</div>
-              </td>
-              <td class="row-actions">
-                <button class="btn btn-sm btn-outline-secondary smallbtn" data-act="assign">강사배정</button>
-                <button class="btn btn-sm btn-outline-primary smallbtn" data-act="logs">코드 다시보기(로그)</button>
-                <button class="btn btn-sm btn-primary smallbtn" data-act="reissue">코드 재발급</button>
-              </td>
-            </tr>
-            <tr class="d-none" data-panel="${r.id}">
-              <td colspan="6">
-                <div class="card p-2">
-                  <div class="small muted">패널</div>
-                  <div id="panel-${r.id}"></div>
-                </div>
-              </td>
-            </tr>
-          `;
-        }).join("");
-        document.getElementById("enrMsg").textContent = `총 ${list.length}건`;
-      }catch(e){
-        document.getElementById("enrMsg").textContent = "오류: " + e.message;
-      }
-    };
-
-    document.getElementById("btnEnrSearch").addEventListener("click", run);
-    searchInput.addEventListener("keydown", (e)=>{ if(e.key==="Enter") run(); });
-    await run();
-
-    wrap.addEventListener("click", async (e)=>{
-      const btn = e.target.closest("button[data-act]");
-      if(!btn) return;
-      const tr = e.target.closest("tr[data-eid]");
-      if(!tr) return;
-      const eid = tr.getAttribute("data-eid");
-      const act = btn.getAttribute("data-act");
-      const panelRow = wrap.querySelector(`tr[data-panel="${eid}"]`);
-      const panel = document.getElementById("panel-" + eid);
-
-      panelRow.classList.remove("d-none");
-      panel.innerHTML = "불러오는 중…";
-
-      if(act==="logs"){
-        try{
-          const out = await auth(`/api/v1/admin/enrollments/${eid}/portal-code/logs`, TOKEN_KEY, { method:"GET" });
-          const logs = out.logs || [];
-          panel.innerHTML = `
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <div><b>학부모코드 로그</b> <span class="muted small">(ISSUE에만 원본 코드가 저장됩니다)</span></div>
-              <button class="btn btn-sm btn-outline-secondary smallbtn" data-close="${eid}">닫기</button>
-            </div>
-            <div class="table-responsive">
-              <table class="table table-sm">
-                <thead><tr class="muted"><th>시간</th><th>타입</th><th>코드(원본)</th><th>Actor</th></tr></thead>
-                <tbody>
-                  ${logs.map(l=>`
-                    <tr>
-                      <td class="small mono">${esc(new Date(l.created_at).toLocaleString())}</td>
-                      <td><span class="badge text-bg-${l.event_type==='ISSUE'?'primary':'secondary'}">${esc(l.event_type)}</span></td>
-                      <td class="mono">${l.event_type==='ISSUE' ? esc(l.code_value||"-") : "-"}</td>
-                      <td class="small">${esc(l.actor_role||"")}</td>
-                    </tr>
-                  `).join("")}
-                </tbody>
-              </table>
-            </div>
-          `;
-        }catch(err){
-          panel.innerHTML = "오류: " + err.message;
-        }
-      }
-
-      if(act==="reissue"){
-        try{
-          const out = await auth(`/api/v1/admin/enrollments/${eid}/portal-code/reissue`, TOKEN_KEY, { method:"POST", body: "{}" });
-          panel.innerHTML = `
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <div><b>재발급 완료</b></div>
-              <button class="btn btn-sm btn-outline-secondary smallbtn" data-close="${eid}">닫기</button>
-            </div>
-            <div class="kv">
-              <div class="muted">새 코드</div><div class="mono"><b>${esc(out.code)}</b></div>
-              <div class="muted">만료</div><div class="mono">${esc(out.expires_at)}</div>
-            </div>
-            <div class="small muted mt-2">※ 이 코드는 ISSUE 로그에도 저장되어 “다시보기”가 가능합니다.</div>
-          `;
-          await loadEnrollments();
-        }catch(err){
-          panel.innerHTML = "오류: " + err.message;
-        }
-      }
-
-      if(act==="assign"){
-        try{
-          const out = await auth(`/api/v1/admin/instructors`, TOKEN_KEY, { method:"GET" });
-          const list = out.instructors || [];
-          panel.innerHTML = `
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <div><b>강사 배정/변경</b></div>
-              <button class="btn btn-sm btn-outline-secondary smallbtn" data-close="${eid}">닫기</button>
-            </div>
-            <div class="row g-2 align-items-end">
-              <div class="col-md-6">
-                <label class="form-label mb-1">강사 검색</label>
-                <input class="form-control" id="assignSearch-${eid}" placeholder="이름/이메일/전화" />
-              </div>
-              <div class="col-md-6">
-                <label class="form-label mb-1">강사 선택</label>
-                <select class="form-select" id="assignSel-${eid}">
-                  ${list.map(i=>`<option value="${i.id}">${esc(i.name)} ${i.is_featured ? "[메인]" : ""} (${esc(i.email||"")})</option>`).join("")}
-                </select>
-              </div>
-              <div class="col-md-12 d-grid">
-                <button class="btn btn-primary" id="assignBtn-${eid}">이 강사로 배정</button>
-              </div>
-            </div>
-            <div class="small muted mt-2" id="assignMsg-${eid}"></div>
-          `;
-          const sel = document.getElementById(`assignSel-${eid}`);
-          const sInput = document.getElementById(`assignSearch-${eid}`);
-          sInput.addEventListener("input", async ()=>{
-            const q = sInput.value.trim();
-            const o2 = await auth(`/api/v1/admin/instructors` + (q ? ("?search="+encodeURIComponent(q)) : ""), TOKEN_KEY, { method:"GET" });
-            const l2 = o2.instructors || [];
-            sel.innerHTML = l2.map(i=>`<option value="${i.id}">${esc(i.name)} ${i.is_featured ? "[메인]" : ""} (${esc(i.email||"")})</option>`).join("");
-          });
-          document.getElementById(`assignBtn-${eid}`).addEventListener("click", async ()=>{
-            document.getElementById(`assignMsg-${eid}`).textContent = "배정 중…";
-            try{
-              await auth(`/api/v1/admin/enrollments/${eid}/assign-instructor`, TOKEN_KEY, {
-                method:"POST",
-                body: JSON.stringify({ instructorId: Number(sel.value) })
-              });
-              document.getElementById(`assignMsg-${eid}`).textContent = "완료";
-              await loadEnrollments();
-            }catch(err){
-              document.getElementById(`assignMsg-${eid}`).textContent = "오류: " + err.message;
-            }
-          });
-        }catch(err){
-          panel.innerHTML = "오류: " + err.message;
-        }
-      }
-    });
-
-    wrap.addEventListener("click", (e)=>{
-      const c = e.target.closest("button[data-close]");
-      if(!c) return;
-      const eid = c.getAttribute("data-close");
-      const panelRow = wrap.querySelector(`tr[data-panel="${eid}"]`);
-      if(panelRow) panelRow.classList.add("d-none");
-    });
-  }
-
-  // ---------- Instructors (search + featured toggle) ----------
-  async function loadInstructors(){
-    const wrap = $("tab-instructors");
-    wrap.innerHTML = `
-      <div class="d-flex gap-2 align-items-end mb-2">
-        <div class="flex-grow-1">
-          <label class="form-label mb-1">통합검색(이름/이메일/전화)</label>
-          <input id="insSearch" class="form-control" placeholder="예) 강사01, teacher01, 010" />
-        </div>
-        <div><button id="btnInsSearch" class="btn btn-outline-primary">검색</button></div>
-      </div>
-      <div id="insMsg" class="small muted mb-2"></div>
-      <div class="table-responsive">
-        <table class="table table-sm align-middle">
-          <thead><tr class="muted"><th>ID</th><th>강사</th><th>타입</th><th>메인</th><th>액션</th></tr></thead>
-          <tbody id="insBody"></tbody>
-        </table>
-      </div>
-    `;
-    const run = async ()=>{
-      const q = document.getElementById("insSearch").value.trim();
-      document.getElementById("insMsg").textContent = "불러오는 중…";
-      try{
-        const out = await auth(`/api/v1/admin/instructors` + (q ? ("?search="+encodeURIComponent(q)) : ""), TOKEN_KEY, { method:"GET" });
-        const list = out.instructors || [];
-        document.getElementById("insBody").innerHTML = list.map(i=>`
-          <tr>
-            <td class="mono">${i.id}</td>
-            <td>
-              <div><a href="admin-instructor-detail.html?id=${encodeURIComponent(i.id)}"><b>${esc(i.name)}</b></a></div>
-              <div class="small muted mono">${esc(i.email||"")}</div>
-            </td>
-            <td class="small">${esc(i.instructor_type||"-")}</td>
-            <td>
-              <input type="checkbox" class="form-check-input" data-feature-id="${i.id}" ${i.is_featured ? "checked" : ""} />
-            </td>
-            <td class="row-actions">
-              <button class="btn btn-sm btn-outline-secondary smallbtn" data-copy="${esc(i.email||"")}">이메일 복사</button>
-            </td>
-          </tr>
-        `).join("");
-        document.getElementById("insMsg").textContent = `총 ${list.length}명`;
-      }catch(e){
-        document.getElementById("insMsg").textContent = "오류: " + e.message;
-      }
-    };
-    document.getElementById("btnInsSearch").addEventListener("click", run);
-    document.getElementById("insSearch").addEventListener("keydown", (e)=>{ if(e.key==="Enter") run(); });
-    wrap.addEventListener("change", async (e)=>{
-      const cb = e.target.closest("input[data-feature-id]");
-      if(!cb) return;
-      const id = cb.getAttribute("data-feature-id");
-      try{
-        await auth(`/api/v1/admin/instructors/${id}/feature`, TOKEN_KEY, {
-          method:"PUT",
-          body: JSON.stringify({ isFeatured: cb.checked ? 1 : 0 })
-        });
-      }catch(err){
-        alert("저장 실패: " + err.message);
-        cb.checked = !cb.checked;
-      }
-    });
-    wrap.addEventListener("click", (e)=>{
-      const btn = e.target.closest("button[data-copy]");
-      if(!btn) return;
-      navigator.clipboard.writeText(btn.getAttribute("data-copy") || "");
-      btn.textContent = "복사됨";
-      setTimeout(()=>btn.textContent="이메일 복사", 800);
-    });
-    await run();
-  }
-
-  // ---------- Weekly reports admin review ----------
-  async function loadWeekly(){
-    const wrap = $("tab-weekly");
-    wrap.innerHTML = `
-      <div class="row g-2 align-items-end mb-2">
-        <div class="col-md-3">
-          <label class="form-label mb-1">상태</label>
-          <select id="wrStatus" class="form-select">
-            <option value="">전체</option>
-            <option value="PENDING">대기</option>
-            <option value="APPROVED">승인</option>
-            <option value="REJECTED">반려</option>
-          </select>
-        </div>
-        <div class="col-md-7">
-          <label class="form-label mb-1">검색(학생/전화/강사)</label>
-          <input id="wrSearch" class="form-control" placeholder="예) 학생, 010, 강사01" />
-        </div>
-        <div class="col-md-2 d-grid">
-          <button id="btnWrSearch" class="btn btn-outline-primary">조회</button>
-        </div>
-      </div>
-      <div id="wrMsg" class="small muted mb-2"></div>
-      <div class="table-responsive">
-        <table class="table table-sm align-middle">
-          <thead><tr class="muted"><th>주차</th><th>학생</th><th>강사</th><th>요약</th><th>상태</th><th>액션</th></tr></thead>
-          <tbody id="wrBody"></tbody>
-        </table>
-      </div>
-    `;
-    const run = async ()=>{
-      const st = document.getElementById("wrStatus").value;
-      const q = document.getElementById("wrSearch").value.trim();
-      document.getElementById("wrMsg").textContent = "불러오는 중…";
-      try{
-        const qs = [];
-        if(st) qs.push("status="+encodeURIComponent(st));
-        if(q) qs.push("search="+encodeURIComponent(q));
-        const out = await auth(`/api/v1/admin/weekly-reports` + (qs.length ? ("?"+qs.join("&")) : ""), TOKEN_KEY, { method:"GET" });
-        const list = out.list || [];
-        document.getElementById("wrBody").innerHTML = list.map(r=>{
-          const metrics = r.metrics_json ? (typeof r.metrics_json === "string" ? JSON.parse(r.metrics_json) : r.metrics_json) : null;
-          const line = metrics ? `출석:${metrics.attendance||"-"} 숙제:${metrics.homework_done||"-"} 집중:${metrics.focus||"-"}` : "-";
-          return `
-            <tr>
-              <td class="mono">${esc(r.week_start_date)}</td>
-              <td>
-                <div><b>${esc(r.student_name)}</b></div>
-                <div class="small muted mono">${esc(r.student_phone||"")}</div>
-              </td>
-              <td>${esc(r.instructor_name||"")}</td>
-              <td class="small">${esc(line)}</td>
-              <td><span class="badge text-bg-${r.admin_status==='APPROVED'?'success':(r.admin_status==='REJECTED'?'danger':'secondary')}">${esc(r.admin_status)}</span></td>
-              <td class="row-actions">
-                <button class="btn btn-sm btn-outline-secondary smallbtn" data-view="${r.id}">보기</button>
-                <button class="btn btn-sm btn-success smallbtn" data-approve="${r.id}">승인</button>
-                <button class="btn btn-sm btn-danger smallbtn" data-reject="${r.id}">반려</button>
-              </td>
-            </tr>
-            <tr class="d-none" data-wrpanel="${r.id}">
-              <td colspan="6">
-                <div class="card p-2">
-                  <div class="d-flex justify-content-between align-items-center">
-                    <div><b>상세</b></div>
-                    <button class="btn btn-sm btn-outline-secondary smallbtn" data-wrclose="${r.id}">닫기</button>
-                  </div>
-                  <pre class="small mt-2 mb-0" style="white-space:pre-wrap;">${esc(JSON.stringify(r, null, 2))}</pre>
-                </div>
-              </td>
-            </tr>
-          `;
-        }).join("");
-        document.getElementById("wrMsg").textContent = `총 ${list.length}건`;
-      }catch(e){
-        document.getElementById("wrMsg").textContent = "오류: " + e.message;
-      }
-    };
-    document.getElementById("btnWrSearch").addEventListener("click", run);
-    document.getElementById("wrSearch").addEventListener("keydown", (e)=>{ if(e.key==="Enter") run(); });
-    wrap.addEventListener("click", async (e)=>{
-      const view = e.target.closest("button[data-view]");
-      const close = e.target.closest("button[data-wrclose]");
-      const ap = e.target.closest("button[data-approve]");
-      const rj = e.target.closest("button[data-reject]");
-
-      if(view){
-        const id = view.getAttribute("data-view");
-        const row = wrap.querySelector(`tr[data-wrpanel="${id}"]`);
-        if(row) row.classList.remove("d-none");
+  // 초기화
+  (function init(){
+    try{
+      const qs = new URLSearchParams(location.search);
+      if(qs.get("logout")==="1"){
+        showLogin("로그아웃 되었습니다.");
         return;
       }
-      if(close){
-        const id = close.getAttribute("data-wrclose");
-        const row = wrap.querySelector(`tr[data-wrpanel="${id}"]`);
-        if(row) row.classList.add("d-none");
-        return;
-      }
-      if(ap || rj){
-        const id = (ap||rj).getAttribute(ap ? "data-approve" : "data-reject");
-        const status = ap ? "APPROVED" : "REJECTED";
-        const note = prompt(status==="APPROVED" ? "승인 메모(선택)" : "반려 사유(선택)", "") || "";
-        try{
-          await auth(`/api/v1/admin/weekly-reports/${id}/review`, TOKEN_KEY, {
-            method:"POST",
-            body: JSON.stringify({ status, note })
-          });
-          await run();
-        }catch(err){
-          alert("실패: " + err.message);
-        }
-      }
-    });
-    await run();
-  }
-
-  // ---------- Existing reports (unchanged endpoints) ----------
-  async function loadReports(){
-    const wrap = $("tab-reports");
-    wrap.innerHTML = `<div class="muted small mb-2">기존 PROJECT/ALGORITHM 리포트 검수</div><div id="repMsg" class="small muted">불러오는 중…</div>`;
-    try{
-      const out = await auth("/api/v1/admin/reports", TOKEN_KEY, { method:"GET" });
-      const list = out.list || [];
-      wrap.innerHTML = `
-        <div class="small muted mb-2">총 ${list.length}건</div>
-        <div class="table-responsive">
-          <table class="table table-sm align-middle">
-            <thead><tr class="muted"><th>ID</th><th>타입</th><th>제목</th><th>상태</th><th>액션</th></tr></thead>
-            <tbody>
-              ${list.map(r=>`
-                <tr>
-                  <td class="mono">${r.id}</td>
-                  <td>${esc(r.type)}</td>
-                  <td>${esc(r.title)}</td>
-                  <td><span class="badge text-bg-${r.status==='APPROVED'?'success':(r.status==='REJECTED'?'danger':'secondary')}">${esc(r.status)}</span></td>
-                  <td>
-                    <button class="btn btn-sm btn-success smallbtn" data-rpapp="${r.id}">승인</button>
-                    <button class="btn btn-sm btn-danger smallbtn" data-rprej="${r.id}">반려</button>
-                  </td>
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-        </div>
-      `;
-    }catch(e){
-      wrap.innerHTML = "오류: " + e.message;
+    }catch(e){}
+    const token = getToken();
+    if(!token){
+      showLogin("");
+      return;
     }
-    wrap.onclick = async (e)=>{
-      const a = e.target.closest("button[data-rpapp]");
-      const r = e.target.closest("button[data-rprej]");
-      if(!a && !r) return;
-      const id = (a||r).getAttribute(a ? "data-rpapp":"data-rprej");
-      const status = a ? "APPROVED" : "REJECTED";
-      const note = prompt(status==="APPROVED" ? "승인 메모(선택)" : "반려 사유(선택)", "") || "";
-      try{
-        await auth(`/api/v1/admin/reports/${id}/review`, TOKEN_KEY, { method:"PUT", body: JSON.stringify({ status, note }) });
-        await loadReports();
-      }catch(err){
-        alert("실패: " + err.message);
-      }
-    };
-  }
-
-  // ---------- instructor applications ----------
-  async function loadInstructorApps(){
-    const wrap = $("tab-instApps");
-    wrap.innerHTML = `<div class="muted small mb-2">강사 지원서 검수</div><div class="small muted">불러오는 중…</div>`;
-    try{
-      const out = await auth("/api/v1/admin/instructor-applications", TOKEN_KEY, { method:"GET" });
-      const list = out.list || [];
-      wrap.innerHTML = `
-        <div class="small muted mb-2">총 ${list.length}건</div>
-        <div class="table-responsive">
-          <table class="table table-sm align-middle">
-            <thead><tr class="muted"><th>ID</th><th>이름</th><th>연락처</th><th>타입</th><th>상태</th><th>액션</th></tr></thead>
-            <tbody>
-              ${list.map(r=>`
-                <tr>
-                  <td class="mono">${r.id}</td>
-                  <td><a href="admin-instructor-app-detail.html?id=${encodeURIComponent(r.id)}">${esc(r.name)}</a></td>
-                  <td class="mono small">${esc(r.phone)}</td>
-                  <td class="small">${esc(r.instructor_type||"-")}</td>
-                  <td>${esc(toKo(STATUS_KO, r.status))}</td>
-                  <td>
-                    <button class="btn btn-sm btn-success smallbtn" data-ia="${r.id}">승인</button>
-                    <button class="btn btn-sm btn-danger smallbtn" data-ir="${r.id}">반려</button>
-                  </td>
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-        </div>
-      `;
-      wrap.onclick = async (e)=>{
-        const ap = e.target.closest("button[data-ia]");
-        const rj = e.target.closest("button[data-ir]");
-        if(!ap && !rj) return;
-        const id = (ap||rj).getAttribute(ap ? "data-ia":"data-ir");
-        const status = ap ? "APPROVED" : "REJECTED";
-        const note = prompt(status==="APPROVED" ? "승인 메모(선택)" : "반려 사유(선택)", "") || "";
-        await auth(`/api/v1/admin/instructor-applications/${id}/review`, TOKEN_KEY, { method:"PUT", body: JSON.stringify({ status, note }) });
-        await loadInstructorApps();
-      };
-    }catch(e){
-      wrap.innerHTML = "오류: " + e.message;
-    }
-  }
-
-  // ---------- student applications ----------
-  async function loadStudents(){
-    const wrap = $("tab-students");
-    wrap.innerHTML = `<div class="muted small mb-2">학생 신청 목록</div><div class="small muted">불러오는 중…</div>`;
-    try{
-      const out = await auth("/api/v1/admin/student-applications", TOKEN_KEY, { method:"GET" });
-      const list = out.list || [];
-      wrap.innerHTML = `
-        <div class="small muted mb-2">총 ${list.length}건</div>
-        <div class="table-responsive">
-          <table class="table table-sm align-middle">
-            <thead><tr class="muted"><th>ID</th><th>이름</th><th>전화</th><th>선호타입</th><th>상태</th></tr></thead>
-            <tbody>
-              ${list.map(r=>`
-                <tr>
-                  <td class="mono">${r.id}</td>
-                  <td><a href="admin-student-detail.html?id=${encodeURIComponent(r.id)}">${esc(r.name)}</a></td>
-                  <td class="mono small">${esc(r.phone)}</td>
-                  <td class="small">${esc(toKo(TYPE_KO, r.preferred_instructor_type||"-"))}</td>
-                  <td>${esc(toKo(STATUS_KO, r.status))}</td>
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-        </div>
-      `;
-    }catch(e){
-      wrap.innerHTML = "오류: " + e.message;
-    }
-  }
-
-  // Auto-login if token exists
-  (async ()=>{
-    if(localStorage.getItem(TOKEN_KEY)){
-      showApp();
-      await loadEnrollments();
-    }
+    showApp();
+    setActiveTab("dashboard");
+    renderDashboard();
   })();
 
 })();
 </script>
+
+<script>
+(function(){
+  // logout=1 쿼리로 들어오면 무조건 로그인 화면
+  try{
+    var qs = new URLSearchParams(location.search);
+    if(qs.get("logout")==="1"){
+      try{ if(typeof showLogin==="function") showLogin("로그아웃 되었습니다."); }catch(e){}
+    }
+  }catch(e){}
+
+  function hardLogout(){
+    try{
+      localStorage.removeItem("codeai_admin_token");
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("admin_token");
+      localStorage.removeItem("token");
+      sessionStorage.clear();
+    }catch(e){}
+    try{ if(typeof showLogin==="function") showLogin("로그아웃 되었습니다."); }catch(e){}
+    window.location.replace("/admin.html?logout=1&ts="+Date.now());
+  }
+
+  function bindLogout(){
+    // id 기반(정식)
+    var btn = document.getElementById("btnLogout");
+    if(btn){
+      btn.addEventListener("click", function(e){
+        e.preventDefault();
+        if(typeof doLogout==="function") doLogout("로그아웃 되었습니다.");
+        else hardLogout();
+      });
+      return;
+    }
+    // 텍스트 기반(비상)
+    var els = Array.from(document.querySelectorAll("a,button"));
+    var target = els.find(function(el){
+      return (el.textContent||"").trim().includes("로그아웃");
+    });
+    if(target){
+      target.addEventListener("click", function(e){
+        e.preventDefault();
+        if(typeof doLogout==="function") doLogout("로그아웃 되었습니다.");
+        else hardLogout();
+      });
+    }
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded", bindLogout);
+  }else{
+    bindLogout();
+  }
+
+  // 디버깅용
+  window.hardLogout = hardLogout;
+})();
+</script>
+
+<script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
