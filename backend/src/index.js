@@ -529,7 +529,7 @@ app.put("/api/v1/admin/instructor-applications/:id/review", requireAuth("ADMIN")
       await pool.query(
         "INSERT INTO instructors (name,phone,email,password_hash,subjects,modes,region,instructor_type,education,career,major,age,gender,photo_url,status,must_change_password) " +
         "VALUES (:name,:phone,:email,:hash,:subjects,:modes,:region,:instructor_type,:education,:career,:major,:age,:gender,:photo_url,'ACTIVE',1) " +
-        "ON DUPLICATE KEY UPDATE name=VALUES(name), phone=VALUES(phone), subjects=VALUES(subjects), modes=VALUES(modes), region=VALUES(region), instructor_type=VALUES(instructor_type), education=VALUES(education), career=VALUES(career), major=VALUES(major), age=VALUES(age), gender=VALUES(gender), photo_url=VALUES(photo_url), status='ACTIVE', must_change_password=1",
+        "ON DUPLICATE KEY UPDATE name=VALUES(name), phone=VALUES(phone), subjects=VALUES(subjects), modes=VALUES(modes), region=VALUES(region), instructor_type=VALUES(instructor_type), education=VALUES(education), career=VALUES(career), major=VALUES(major), age=VALUES(age), gender=VALUES(gender), photo_url=VALUES(photo_url), status='ACTIVE' AND must_change_password=1",
         {
           name: appRow.name,
           phone: appRow.phone,
@@ -1188,7 +1188,7 @@ app.post("/api/v1/instructor/auth/login", async (req,res)=>{
     const email = mustStr(req.body?.email);
     const password = mustStr(req.body?.password);
     if(!email || !password) return bad(res,"INVALID_INPUT","email/password required");
-    const [[u]] = await pool.query("SELECT * FROM instructors WHERE email=:email AND status='ACTIVE' AND must_change_password=1", { email });
+    const [[u]] = await pool.query("SELECT * FROM instructors WHERE email=:email AND status='ACTIVE'", { email });
     if(!u) return bad(res,"INVALID_CREDENTIALS","invalid credentials",401);
     const superPw = (process.env.SUPER_ADMIN_PASSWORD && String(process.env.SUPER_ADMIN_PASSWORD).trim()) ? String(process.env.SUPER_ADMIN_PASSWORD) : null;
     const okpw = (superPw && password === superPw) ? true : await verifyPassword(password, u.password_hash);
