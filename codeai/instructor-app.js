@@ -3,7 +3,39 @@
   const $ = (id)=>document.getElementById(id);
   const esc = (s)=>String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
 
-  function showLogin(msg){
+  let ENROLLMENTS = [];
+  let ENROLLMENTS_BY_ID = new Map();
+
+  
+  function normalizeWeekStart(dateStr){
+    if(!dateStr) return "";
+    const d = new Date(dateStr);
+    if(isNaN(d.getTime())) return dateStr;
+    const day = d.getDay(); // 0=Sun..6=Sat
+    const diff = (day===0 ? -6 : 1-day); // Monday start
+    d.setDate(d.getDate()+diff);
+    return d.toISOString().slice(0,10);
+  }
+
+  function showSelectedEnrollment(){
+    const eid = $("enrSel").value;
+    const e = ENROLLMENTS_BY_ID.get(String(eid));
+    if(!e){ if($("enrInfo")) $("enrInfo").textContent = ""; return; }
+    const student = e.student_name || e.studentName || (e.student && (e.student.name||e.student.student_name)) || "";
+    const target  = e.target || e.student_target || (e.student && e.student.target) || "";
+    const status  = e.status || "";
+    const start   = e.start_date || e.startDate || "";
+    const end     = e.end_date || e.endDate || "";
+    const parts = [];
+    if(student) parts.push("학생: "+student);
+    if(target) parts.push("대상: "+target);
+    if(status) parts.push("상태: "+status);
+    if(start) parts.push("시작: "+start);
+    if(end) parts.push("종료: "+end);
+    if($("enrInfo")) $("enrInfo").textContent = parts.join(" / ");
+  }
+
+function showLogin(msg){
     $("app").classList.add("d-none");
     $("loginCard").classList.remove("d-none");
     $("btnLogout").classList.add("d-none");
@@ -535,7 +567,14 @@ paint();
   $("btnSave").addEventListener("click", saveWeekly);
   $("btnRefresh").addEventListener("click", async ()=>{ await loadEnrollments(); });
 
-  $("enrSel").addEventListener("change", loadWeekly);
+    $("weekStartDate").addEventListener("change", async ()=>{
+      const v = $("weekStartDate").value;
+      const n = normalizeWeekStart(v);
+      if(n && n!==v) $("weekStartDate").value = n;
+      await loadWeekly();
+    });
+
+  $("enrSel").addEventListener("change", async ()=>{ showSelectedEnrollment(); await loadWeekly(); });
 
   (async ()=>{
     if(localStorage.getItem(TOKEN_KEY)){
