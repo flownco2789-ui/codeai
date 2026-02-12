@@ -1,7 +1,12 @@
 (function(){
   
-  function $(id){ return document.getElementById(id); }
-  function on(id, ev, fn){ const el=$(id); if(el) el.addEventListener(ev, fn); }
+  
+  // Safe DOM event binder (prevents null/addEventListener crashes)
+  function on(id, ev, fn){
+    var el = document.getElementById(id);
+    if (el) el.addEventListener(ev, fn);
+  }
+function $(id){ return document.getElementById(id); }
 const TOKEN_KEY = "codeai_instructor_token";
   const $ = (id)=>document.getElementById(id);
   const esc = (s)=>String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
