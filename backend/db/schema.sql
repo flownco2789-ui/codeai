@@ -173,6 +173,10 @@ ALTER TABLE instructor_applications ADD COLUMN instructor_type ENUM('COLLEGE','E
 ALTER TABLE instructors ADD COLUMN is_featured TINYINT(1) NOT NULL DEFAULT 0;
 ALTER TABLE instructors ADD INDEX idx_instructors_featured (is_featured);
 
+-- ===== Admin memo(비고) =====
+ALTER TABLE instructors ADD COLUMN admin_note TEXT NULL;
+ALTER TABLE student_applications ADD COLUMN admin_note TEXT NULL;
+
 CREATE TABLE IF NOT EXISTS portal_code_events (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   enrollment_id BIGINT UNSIGNED NOT NULL,
@@ -213,3 +217,16 @@ CREATE TABLE IF NOT EXISTS weekly_reports (
   INDEX idx_wr_week (week_start_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ===== Admin list sorting / status changed timestamps =====
+ALTER TABLE student_applications ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE student_applications ADD COLUMN status_changed_at TIMESTAMP NULL DEFAULT NULL;
+
+ALTER TABLE instructors ADD COLUMN status_changed_at TIMESTAMP NULL DEFAULT NULL;
+
+ALTER TABLE instructor_applications ADD COLUMN status_changed_at TIMESTAMP NULL DEFAULT NULL;
+
+ALTER TABLE student_applications ADD INDEX idx_student_apps_created (created_at);
+ALTER TABLE student_applications ADD INDEX idx_student_apps_status_changed (status_changed_at);
+ALTER TABLE instructors ADD INDEX idx_instructors_created (created_at);
+ALTER TABLE instructors ADD INDEX idx_instructors_status_changed (status_changed_at);
+ALTER TABLE instructor_applications ADD INDEX idx_instructor_apps_created (created_at);

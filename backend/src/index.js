@@ -266,7 +266,7 @@ app.post("/api/v1/public/student-applications/:id/select-instructor", async (req
     if(!inst) return bad(res,"NOT_FOUND","instructor not found",404);
 
     await pool.query(
-      "UPDATE student_applications SET status='INSTRUCTOR_SELECTED', selected_instructor_id=:iid WHERE id=:id",
+      "UPDATE student_applications SET status='INSTRUCTOR_SELECTED', selected_instructor_id=:iid, status_changed_at=NOW() WHERE id=:id",
       { id: appId, iid: instructorId }
     );
 
@@ -276,7 +276,7 @@ app.post("/api/v1/public/student-applications/:id/select-instructor", async (req
     );
     const enrollmentId = r.insertId;
 
-    await pool.query("UPDATE student_applications SET status='ENROLLED' WHERE id=:id", { id: appId });
+    await pool.query("UPDATE student_applications SET status='ENROLLED', status_changed_at=NOW() WHERE id=:id", { id: appId });
 
     // notify logs
     await notifyAdminsByRoles(pool, ["SUPER_ADMIN","SUB_ADMIN","STUDENT_ADMIN"], "STUDENT_SELECTED_INSTRUCTOR", {
@@ -327,8 +327,8 @@ app.post("/api/v1/public/instructor-applications", upload.single("photo"), async
     }
 
     const [r] = await pool.query(
-      "INSERT INTO instructor_applications (name,phone,email,subjects,modes,region,education,career,major,age,gender,photo_url,status) " +
-      "VALUES (:name,:phone,:email,:subjects,:modes,:region,:education,:career,:major,:age,:gender,:photo_url,'PENDING')",
+      "INSERT INTO instructor_applications (name,phone,email,subjects,modes,region,instructor_type,education,career,major,age,gender,photo_url,status) " +
+      "VALUES (:name,:phone,:email,:subjects,:modes,:region,:instructor_type,:education,:career,:major,:age,:gender,:photo_url,'PENDING')",
       {
         name,
         phone: formatPhone(phone),
@@ -427,18 +427,79 @@ app.post("/api/v1/admin/auth/login", async (req,res)=>{
 
 app.get("/api/v1/admin/instructor-applications", requireAuth("ADMIN"), async (req,res)=>{
   try{
-    const [rows] = await pool.query("SELECT * FROM instructor_applications ORDER BY id DESC LIMIT 200");
+    const search = mustStr(req.query?.search) || null;
+    const status = mustStr(req.query?.status) || null;
+    const sortByRaw = mustStr(req.query?.sortBy) || null;
+    const sortDirRaw = mustStr(req.query?.sortDir) || null;
+    const limitRaw = Number(req.query?.limit || 200);
+    const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(1000, limitRaw)) : 200;
+
+    const allowedSort = { id:"id", created_at:"created_at", status:"status", reviewed_at:"reviewed_at", name:"name" };
+    const sortBy = allowedSort[sortByRaw] || "id";
+    const sortDir = (String(sortDirRaw||"").toUpperCase()==="ASC") ? "ASC" : "DESC";
+
+    let sql = "SELECT * FROM instructor_applications WHERE 1=1";
+    const params = {};
+    if(search){
+      sql += " AND (name LIKE :q OR phone LIKE :q OR email LIKE :q)";
+      params.q = `%${search}%`;
+    }
+    if(status && ["PENDING","APPROVED","REJECTED"].includes(status)){
+      sql += " AND status=:st";
+      params.st = status;
+    }
+    sql += ` ORDER BY ${sortBy} ${sortDir}, id DESC LIMIT ${limit}`;
+
+    const [rows] = await pool.query(sql, params);
     ok(res, { list: rows.map(r=>({
       id:r.id, name:r.name, phone:r.phone, email:r.email,
       subjects: jsonStr(r.subjects), modes: jsonStr(r.modes), region:r.region,
+      instructor_type: r.instructor_type,
       education:r.education, career:r.career, major:r.major, age:r.age, gender:r.gender,
-      photo_url:r.photo_url, status:r.status, review_note:r.review_note, created_at:r.created_at
+      photo_url:r.photo_url, status:r.status, review_note:r.review_note,
+      created_at:r.created_at, reviewed_at:r.reviewed_at,
+      status_changed_at: r.status_changed_at || r.reviewed_at || r.created_at
     }))});
   }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
 });
+
+// 강사 지원 상세
+app.get("/api/v1/admin/instructor-applications/:id", requireAuth("ADMIN"), async (req,res)=>{
+  try{
+    const id = Number(req.params.id);
+    if(!id) return bad(res,"INVALID_INPUT","id required");
+    const [[r]] = await pool.query("SELECT * FROM instructor_applications WHERE id=:id", { id });
+    if(!r) return bad(res,"NOT_FOUND","not found",404);
+    ok(res, {
+      id:r.id,
+      name:r.name,
+      phone:r.phone,
+      email:r.email,
+      subjects: jsonStr(r.subjects),
+      modes: jsonStr(r.modes),
+      region:r.region,
+      instructor_type: r.instructor_type,
+      education:r.education,
+      career:r.career,
+      major:r.major,
+      age:r.age,
+      gender:r.gender,
+      photo_url:r.photo_url,
+      status:r.status,
+      review_note:r.review_note,
+      reviewed_at:r.reviewed_at,
+      created_at:r.created_at,
+      status_changed_at: r.status_changed_at || r.reviewed_at || r.created_at
+    });
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
 
 app.put("/api/v1/admin/instructor-applications/:id/review", requireAuth("ADMIN"), async (req,res)=>{
   try{
@@ -451,7 +512,7 @@ app.put("/api/v1/admin/instructor-applications/:id/review", requireAuth("ADMIN")
     if(!appRow) return bad(res,"NOT_FOUND","not found",404);
 
     await pool.query(
-      "UPDATE instructor_applications SET status=:status, review_note=:note, reviewed_at=NOW() WHERE id=:id",
+      "UPDATE instructor_applications SET status=:status, review_note=:note, reviewed_at=NOW(), status_changed_at=NOW() WHERE id=:id",
       { id, status, note }
     );
 
@@ -495,14 +556,159 @@ app.put("/api/v1/admin/instructor-applications/:id/review", requireAuth("ADMIN")
 
 app.get("/api/v1/admin/student-applications", requireAuth("ADMIN"), async (req,res)=>{
   try{
-    const [rows] = await pool.query("SELECT * FROM student_applications ORDER BY id DESC LIMIT 200");
+    const search = mustStr(req.query?.search) || null;
+    const status = mustStr(req.query?.status) || null;
+    const mode = mustStr(req.query?.mode) || null;
+    const sortByRaw = mustStr(req.query?.sortBy) || null;
+    const sortDirRaw = mustStr(req.query?.sortDir) || null;
+    const limitRaw = Number(req.query?.limit || 200);
+    const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(1000, limitRaw)) : 200;
+
+    const allowedSort = { id:"id", created_at:"created_at", status_changed_at:"status_changed_at", updated_at:"updated_at", status:"status", name:"name" };
+    const sortBy = allowedSort[sortByRaw] || "id";
+    const sortDir = (String(sortDirRaw||"").toUpperCase()==="ASC") ? "ASC" : "DESC";
+
+    let sql =
+      "SELECT sa.*, i.name AS selected_instructor_name, i.email AS selected_instructor_email " +
+      "FROM student_applications sa " +
+      "LEFT JOIN instructors i ON i.id=sa.selected_instructor_id " +
+      "WHERE 1=1";
+    const params = {};
+    if(search){
+      sql += " AND (sa.name LIKE :q OR sa.phone LIKE :q)";
+      params.q = `%${search}%`;
+    }
+    if(status && ["SUBMITTED","MATCHING","INSTRUCTOR_SELECTED","ENROLLED","CANCELLED"].includes(status)){
+      sql += " AND sa.status=:st";
+      params.st = status;
+    }
+    if(mode && ["ZOOM","OFFLINE_1_1","OFFLINE_GROUP"].includes(mode)){
+      sql += " AND sa.mode=:m";
+      params.m = mode;
+    }
+    sql += ` ORDER BY ${sortBy} ${sortDir}, sa.id DESC LIMIT ${limit}`;
+
+    const [rows] = await pool.query(sql, params);
     ok(res, { list: rows.map(r=>({
       id:r.id, name:r.name, phone:r.phone,
-      subjects: jsonStr(r.subjects), target:r.target, mode:r.mode, region:r.region, preferred_instructor_type:r.preferred_instructor_type, status:r.status,
-      selected_instructor_id:r.selected_instructor_id, created_at:r.created_at
+      subjects: jsonStr(r.subjects),
+      target:r.target, mode:r.mode, region:r.region,
+      preferred_instructor_type:r.preferred_instructor_type,
+      status:r.status,
+      selected_instructor_id:r.selected_instructor_id,
+      selected_instructor_name:r.selected_instructor_name || null,
+      selected_instructor_email:r.selected_instructor_email || null,
+      created_at:r.created_at,
+      updated_at:r.updated_at || null,
+      status_changed_at: r.status_changed_at || r.updated_at || r.created_at,
+      admin_note:r.admin_note
     }))});
   }catch(e){
     console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
+
+// 학생 신청 상세
+app.get("/api/v1/admin/student-applications/:id", requireAuth("ADMIN"), async (req,res)=>{
+  try{
+    const id = Number(req.params.id);
+    if(!id) return bad(res,"INVALID_INPUT","id required");
+    const [[r]] = await pool.query("SELECT * FROM student_applications WHERE id=:id", { id });
+    if(!r) return bad(res,"NOT_FOUND","not found",404);
+    ok(res, {
+      id: r.id,
+      name: r.name,
+      phone: r.phone,
+      subjects: jsonStr(r.subjects),
+      target: r.target,
+      mode: r.mode,
+      region: r.region,
+      preferred_instructor_type: r.preferred_instructor_type,
+      note: r.note,
+      admin_note: r.admin_note,
+      status: r.status,
+      selected_instructor_id: r.selected_instructor_id,
+      created_at: r.created_at,
+      updated_at: r.updated_at || null,
+      status_changed_at: r.status_changed_at || r.updated_at || r.created_at
+    });
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
+// 학생 신청 수정(관리자)
+app.put("/api/v1/admin/student-applications/:id", requireAuth("ADMIN"), async (req,res)=>{
+  try{
+    const id = Number(req.params.id);
+    if(!id) return bad(res,"INVALID_INPUT","id required");
+
+    const name = mustStr(req.body?.name);
+    const phone = mustStr(req.body?.phone);
+    const subjects = jsonArr(req.body?.subjects).map(s=>String(s).trim()).filter(Boolean).slice(0,5);
+    const target = (mustStr(req.body?.target) || null);
+    const mode = mustStr(req.body?.mode);
+    const region = (mustStr(req.body?.region) || null);
+    const preferredRaw = mustStr(req.body?.preferredInstructorType) || mustStr(req.body?.preferred_instructor_type) || null;
+    const preferred = (preferredRaw && preferredRaw.trim()) ? preferredRaw.trim() : "ANY";
+    const note = (mustStr(req.body?.note) || null);
+    const adminNote = (mustStr(req.body?.admin_note) || null);
+    const status = mustStr(req.body?.status);
+    const selectedInstructorIdRaw = req.body?.selected_instructor_id ?? req.body?.selectedInstructorId ?? null;
+    const selectedInstructorId = (selectedInstructorIdRaw === null || selectedInstructorIdRaw === undefined || String(selectedInstructorIdRaw).trim()==="")
+      ? null
+      : Number(selectedInstructorIdRaw);
+
+    if(!name) return bad(res,"INVALID_NAME","name required");
+    if(!phone || !isValidPhone(phone)) return bad(res,"INVALID_PHONE","phone invalid");
+    if(!subjects.length) return bad(res,"INVALID_SUBJECTS","subjects required");
+    if(!mode || !["ZOOM","OFFLINE_1_1","OFFLINE_GROUP"].includes(mode)) return bad(res,"INVALID_MODE","mode invalid");
+    if(!["ANY","COLLEGE","EMPLOYEE","FREELANCER","FULLTIME_TUTOR","OTHER"].includes(preferred)){
+      return bad(res,"INVALID_PREFERRED_INSTRUCTOR_TYPE","preferred_instructor_type invalid");
+    }
+    if(!["SUBMITTED","MATCHING","INSTRUCTOR_SELECTED","ENROLLED","CANCELLED"].includes(status)){
+      return bad(res,"INVALID_STATUS","status invalid");
+    }
+    if(selectedInstructorId !== null && (!Number.isFinite(selectedInstructorId) || selectedInstructorId <= 0)){
+      return bad(res,"INVALID_SELECTED_INSTRUCTOR_ID","selected_instructor_id invalid");
+    }
+
+    // 오프라인 수업은 지역 입력 권장(필수 처리)
+    if(mode !== "ZOOM" && (!region || !String(region).trim())){
+      return bad(res,"INVALID_REGION","region required for offline mode");
+    }
+
+    const [[cur]] = await pool.query("SELECT status FROM student_applications WHERE id=:id", { id });
+    if(!cur) return bad(res,"NOT_FOUND","not found",404);
+    const st_changed = String(cur.status||"") !== status;
+
+    await pool.query(
+      "UPDATE student_applications SET name=:name, phone=:phone, subjects=:subjects, target=:target, mode=:mode, region=:region, preferred_instructor_type=:pit, note=:note, admin_note=:admin_note, status=:status, status_changed_at=IF(:st_changed=1,NOW(),status_changed_at), selected_instructor_id=:sid WHERE id=:id",
+      {
+        id,
+        name,
+        phone: formatPhone(phone),
+        subjects: JSON.stringify(subjects),
+        target,
+        mode,
+        region,
+        pit: preferred,
+        note,
+        admin_note: adminNote,
+        status,
+        st_changed: st_changed ? 1 : 0,
+        sid: selectedInstructorId
+      }
+    );
+    ok(res, {});
+  }catch(e){
+    console.error(e);
+    if(e?.code === "ER_NO_REFERENCED_ROW_2"){
+      return bad(res,"INVALID_FK","selected_instructor_id not found",400);
+    }
     bad(res,"SERVER_ERROR","Failed",500);
   }
 });
@@ -552,15 +758,39 @@ app.get("/api/v1/admin/enrollments", requireAuth("ADMIN"), async (req,res)=>{
 app.get("/api/v1/admin/instructors", requireAuth("ADMIN"), async (req,res)=>{
   try{
     const search = mustStr(req.query?.search) || null;
+    const status = mustStr(req.query?.status) || null;
     const instructorTypeRaw = mustStr(req.query?.instructorType) || null;
     const instructorType = instructorTypeRaw ? instructorTypeRaw.trim() : null;
     const featured = mustStr(req.query?.featured) || null;
 
-    let sql = "SELECT id,name,phone,email,region,instructor_type,is_featured,subjects,modes,education,career,major,age,gender,photo_url,status FROM instructors WHERE 1=1";
+    const sortByRaw = mustStr(req.query?.sortBy) || null;
+    const sortDirRaw = mustStr(req.query?.sortDir) || null;
+    const limitRaw = Number(req.query?.limit || 300);
+    const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(1000, limitRaw)) : 300;
+
+    const allowedSort = {
+      id:"id",
+      name:"name",
+      status:"status",
+      created_at:"created_at",
+      updated_at:"updated_at",
+      status_changed_at:"status_changed_at",
+      is_featured:"is_featured"
+    };
+    const sortBy = allowedSort[sortByRaw] || null;
+    const sortDir = (String(sortDirRaw||"").toUpperCase()==="ASC") ? "ASC" : "DESC";
+
+    let sql =
+      "SELECT id,name,phone,email,region,instructor_type,is_featured,subjects,modes,education,career,major,age,gender,photo_url,status,admin_note,created_at,updated_at,status_changed_at " +
+      "FROM instructors WHERE 1=1";
     const params = {};
     if(search){
       sql += " AND (name LIKE :q OR phone LIKE :q OR email LIKE :q)";
       params.q = `%${search}%`;
+    }
+    if(status && ["ACTIVE","SUSPENDED"].includes(status)){
+      sql += " AND status=:st";
+      params.st = status;
     }
     if(instructorType && instructorType !== "ANY"){
       sql += " AND instructor_type=:t";
@@ -569,17 +799,148 @@ app.get("/api/v1/admin/instructors", requireAuth("ADMIN"), async (req,res)=>{
     if(featured === "1"){
       sql += " AND is_featured=1";
     }
-    sql += " ORDER BY is_featured DESC, id DESC LIMIT 300";
+
+    if(sortBy){
+      sql += ` ORDER BY ${sortBy} ${sortDir}, id DESC`;
+    }else{
+      // default
+      sql += " ORDER BY is_featured DESC, id DESC";
+    }
+    sql += ` LIMIT ${limit}`;
+
     const [rows] = await pool.query(sql, params);
     ok(res, { instructors: rows.map(r=>({
       id:r.id, name:r.name, phone:r.phone, email:r.email, region:r.region,
       instructor_type:r.instructor_type, is_featured:r.is_featured,
       subjects: typeof r.subjects === "string" ? r.subjects : JSON.stringify(r.subjects),
       modes: typeof r.modes === "string" ? r.modes : JSON.stringify(r.modes),
-      photo_url:r.photo_url, status:r.status
+      photo_url:r.photo_url,
+      status:r.status,
+      admin_note:r.admin_note,
+      created_at:r.created_at,
+      updated_at:r.updated_at,
+      status_changed_at: r.status_changed_at || r.updated_at || r.created_at
     }))});
   }catch(e){
     console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
+
+// 강사 상세
+app.get("/api/v1/admin/instructors/:id", requireAuth("ADMIN"), async (req,res)=>{
+  try{
+    const id = Number(req.params.id);
+    if(!id) return bad(res,"INVALID_INPUT","id required");
+    const [[r]] = await pool.query("SELECT * FROM instructors WHERE id=:id", { id });
+    if(!r) return bad(res,"NOT_FOUND","not found",404);
+    ok(res, {
+      id: r.id,
+      name: r.name,
+      phone: r.phone,
+      email: r.email,
+      password_hash: r.password_hash,
+      subjects: jsonStr(r.subjects),
+      modes: jsonStr(r.modes),
+      region: r.region,
+      instructor_type: r.instructor_type,
+      education: r.education,
+      career: r.career,
+      major: r.major,
+      age: r.age,
+      gender: r.gender,
+      photo_url: r.photo_url,
+      status: r.status,
+      is_featured: r.is_featured,
+      admin_note: r.admin_note,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+      status_changed_at: r.status_changed_at || r.updated_at || r.created_at
+    });
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
+// 강사 수정(관리자)
+app.put("/api/v1/admin/instructors/:id", requireAuth("ADMIN"), async (req,res)=>{
+  try{
+    const id = Number(req.params.id);
+    if(!id) return bad(res,"INVALID_INPUT","id required");
+
+    const name = mustStr(req.body?.name);
+    const phone = mustStr(req.body?.phone);
+    const email = mustStr(req.body?.email);
+    const subjects = jsonArr(req.body?.subjects).map(s=>String(s).trim()).filter(Boolean).slice(0,10);
+    const modes = jsonArr(req.body?.modes).map(s=>String(s).trim()).filter(Boolean).slice(0,10);
+    const region = (mustStr(req.body?.region) || null);
+    const instructorTypeRaw = mustStr(req.body?.instructorType) || mustStr(req.body?.instructor_type) || null;
+    const instructorType = (instructorTypeRaw && instructorTypeRaw.trim()) ? instructorTypeRaw.trim() : null;
+    const education = (mustStr(req.body?.education) || null);
+    const career = (mustStr(req.body?.career) || null);
+    const major = (mustStr(req.body?.major) || null);
+    const ageRaw = req.body?.age;
+    const age = (ageRaw === null || ageRaw === undefined || String(ageRaw).trim()==="") ? null : Number(ageRaw);
+    const genderRaw = mustStr(req.body?.gender) || null;
+    const gender = (genderRaw && genderRaw.trim()) ? genderRaw.trim() : null;
+    const photoUrl = (mustStr(req.body?.photo_url) || mustStr(req.body?.photoUrl) || null);
+    const status = mustStr(req.body?.status);
+    const isFeatured = Number(req.body?.is_featured ?? req.body?.isFeatured ?? 0) ? 1 : 0;
+    const adminNote = (mustStr(req.body?.admin_note) || null);
+
+    if(!name) return bad(res,"INVALID_NAME","name required");
+    if(!phone || !isValidPhone(phone)) return bad(res,"INVALID_PHONE","phone invalid");
+    if(!email) return bad(res,"INVALID_EMAIL","email required");
+    if(!subjects.length) return bad(res,"INVALID_SUBJECTS","subjects required");
+    if(!modes.length) return bad(res,"INVALID_MODES","modes required");
+    if(instructorType && !["COLLEGE","EMPLOYEE","FREELANCER","FULLTIME_TUTOR","OTHER"].includes(instructorType)){
+      return bad(res,"INVALID_INSTRUCTOR_TYPE","instructor_type invalid");
+    }
+    if(gender && !["M","F","OTHER"].includes(gender)){
+      return bad(res,"INVALID_GENDER","gender invalid");
+    }
+    if(age !== null && (!Number.isFinite(age) || age < 0 || age > 120)){
+      return bad(res,"INVALID_AGE","age invalid");
+    }
+    if(!["ACTIVE","SUSPENDED"].includes(status)){
+      return bad(res,"INVALID_STATUS","status invalid");
+    }
+
+    const [[cur]] = await pool.query("SELECT status FROM instructors WHERE id=:id", { id });
+    if(!cur) return bad(res,"NOT_FOUND","not found",404);
+    const st_changed = String(cur.status||"") !== status;
+
+    await pool.query(
+      "UPDATE instructors SET name=:name, phone=:phone, email=:email, subjects=:subjects, modes=:modes, region=:region, instructor_type=:it, education=:education, career=:career, major=:major, age=:age, gender=:gender, photo_url=:photo_url, status=:status, status_changed_at=IF(:st_changed=1,NOW(),status_changed_at), is_featured=:f, admin_note=:admin_note WHERE id=:id",
+      {
+        id,
+        name,
+        phone: formatPhone(phone),
+        email,
+        subjects: JSON.stringify(subjects),
+        modes: JSON.stringify(modes),
+        region,
+        it: instructorType,
+        education,
+        career,
+        major,
+        age,
+        gender,
+        photo_url: photoUrl,
+        status,
+        st_changed: st_changed ? 1 : 0,
+        f: isFeatured,
+        admin_note: adminNote
+      }
+    );
+    ok(res, {});
+  }catch(e){
+    console.error(e);
+    if(e?.code === "ER_DUP_ENTRY"){
+      return bad(res,"DUPLICATE","email already exists",400);
+    }
     bad(res,"SERVER_ERROR","Failed",500);
   }
 });

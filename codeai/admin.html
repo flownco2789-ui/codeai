@@ -72,30 +72,63 @@
 (function(){
   const $ = (id)=>document.getElementById(id);
   const TOKEN_KEY = "codeai_admin_token";
-const TYPE_KO = {
+const STUDENT_PREF_KO = {
   "ANY":"무관",
-  "female":"여강사",
-  "male":"남강사",
-  "online":"온라인",
-  "offline":"대면",
-  "FEMALE":"여강사",
-  "MALE":"남강사"
+  "COLLEGE":"대학생",
+  "EMPLOYEE":"직장인",
+  "FREELANCER":"프리랜서",
+  "FULLTIME_TUTOR":"전업강사",
+  "OTHER":"기타"
 };
-const STATUS_KO = {
+const STUDENT_STATUS_KO = {
+  "SUBMITTED":"신청",
+  "MATCHING":"매칭중",
+  "INSTRUCTOR_SELECTED":"강사선택",
+  "ENROLLED":"등록",
+  "CANCELLED":"취소"
+};
+const MODE_KO = {
+  "ZOOM":"온라인(줌)",
+  "OFFLINE_1_1":"대면 1:1",
+  "OFFLINE_GROUP":"대면 그룹"
+};
+const INSTRUCTOR_TYPE_KO = STUDENT_PREF_KO;
+const INSTRUCTOR_STATUS_KO = {
+  "ACTIVE":"활동",
+  "SUSPENDED":"정지"
+};
+const APP_STATUS_KO = {
   "PENDING":"대기",
   "APPROVED":"승인",
-  "REJECTED":"거절",
-  "MATCHED":"매칭완료",
-  "CANCELED":"취소",
-  "pending":"대기",
-  "approved":"승인",
-  "rejected":"거절",
-  "matched":"매칭완료",
-  "canceled":"취소"
+  "REJECTED":"반려"
 };
 function toKo(map, v){
   if(v===null||v===undefined||v==="") return "-";
   return map[String(v)] || String(v);
+}
+function fmtDT(v){
+  if(v===null||v===undefined||v==="") return "-";
+  try{
+    const d = (v instanceof Date) ? v : new Date(v);
+    if(Number.isNaN(d.getTime())){
+      return String(v).replace("T"," ").slice(0,16);
+    }
+    const pad = (n)=>String(n).padStart(2,"0");
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }catch(e){
+    return String(v).replace("T"," ").slice(0,16);
+  }
+}
+
+function loadState(key, fallback){
+  try{
+    return Object.assign({}, fallback||{}, JSON.parse(localStorage.getItem(key)||"{}"));
+  }catch(e){
+    return Object.assign({}, fallback||{});
+  }
+}
+function saveState(key, st){
+  try{ localStorage.setItem(key, JSON.stringify(st||{})); }catch(e){}
 }
 
 function showLogin(msg){
@@ -158,6 +191,31 @@ async function auth(path, opts){
   }
 }
   const esc = (s)=>String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+  function snip(v, n=18){
+    const s = String(v||"").replace(/\s+/g," ").trim();
+    if(!s) return "";
+    return s.length>n ? (s.slice(0,n)+"…") : s;
+  }
+
+function downloadCSV(filename, columns, rows){
+  const escCell = (v)=>{
+    const s = String(v ?? "");
+    if(/[",\n]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+    return s;
+  };
+  const header = columns.map(c=>escCell(c.label)).join(",");
+  const body = rows.map(r=>columns.map(c=>escCell(r[c.key])).join(",")).join("\n");
+  const csv = "\ufeff" + header + "\n" + body; // BOM for Excel
+  const blob = new Blob([csv], { type:"text/csv;charset=utf-8;" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
+
 
   function setActiveTab(name){
     ["enrollments","instructors","weekly","reports","instApps","students"].forEach(t=>{
@@ -408,75 +466,200 @@ async function auth(path, opts){
 
   // ---------- Instructors (search + featured toggle) ----------
   async function loadInstructors(){
-    const wrap = $("tab-instructors");
-    wrap.innerHTML = `
-      <div class="d-flex gap-2 align-items-end mb-2">
-        <div class="flex-grow-1">
-          <label class="form-label mb-1">통합검색(이름/이메일/전화)</label>
-          <input id="insSearch" class="form-control" placeholder="예) 강사01, teacher01, 010" />
+  const wrap = $("tab-instructors");
+  const STATE_KEY = "codeai_admin_instructors_state";
+  const st = loadState(STATE_KEY, { search:"", status:"", type:"", featured:"", sortBy:"is_featured", sortDir:"DESC" });
+
+  wrap.innerHTML = `
+    <div class="row g-2 align-items-end mb-2">
+      <div class="col-md-5">
+        <label class="form-label mb-1">검색(이름/이메일/전화)</label>
+        <input id="insSearch" class="form-control" placeholder="예) 강사01, teacher01, 010" value="${esc(st.search)}" />
+      </div>
+      <div class="col-md-2">
+        <label class="form-label mb-1">상태</label>
+        <select id="insStatus" class="form-select">
+          <option value="">전체</option>
+          <option value="ACTIVE">활동</option>
+          <option value="SUSPENDED">정지</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label mb-1">타입</label>
+        <select id="insType" class="form-select">
+          <option value="">전체</option>
+          <option value="COLLEGE">대학생</option>
+          <option value="EMPLOYEE">직장인</option>
+          <option value="FREELANCER">프리랜서</option>
+          <option value="FULLTIME_TUTOR">전업강사</option>
+          <option value="OTHER">기타</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label mb-1">정렬</label>
+        <div class="d-flex gap-2">
+          <select id="insSortBy" class="form-select">
+            <option value="is_featured">메인(우선)</option>
+            <option value="created_at">최초신청일</option>
+            <option value="status_changed_at">상태변경일</option>
+            <option value="name">이름</option>
+            <option value="status">상태</option>
+            <option value="id">ID</option>
+          </select>
+          <select id="insSortDir" class="form-select" style="max-width:120px">
+            <option value="DESC">내림차순</option>
+            <option value="ASC">오름차순</option>
+          </select>
         </div>
-        <div><button id="btnInsSearch" class="btn btn-outline-primary">검색</button></div>
       </div>
-      <div id="insMsg" class="small muted mb-2"></div>
-      <div class="table-responsive">
-        <table class="table table-sm align-middle">
-          <thead><tr class="muted"><th>ID</th><th>강사</th><th>타입</th><th>메인</th><th>액션</th></tr></thead>
-          <tbody id="insBody"></tbody>
-        </table>
+      <div class="col-md-12 d-flex justify-content-between align-items-center mt-2">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="insFeaturedOnly">
+          <label class="form-check-label" for="insFeaturedOnly">메인강사만</label>
+        </div>
+        <div class="d-flex gap-2">
+          <button id="btnInsCSV" class="btn btn-outline-secondary">CSV</button>
+          <button id="btnInsSearch" class="btn btn-outline-primary">조회</button>
+        </div>
       </div>
-    `;
-    const run = async ()=>{
-      const q = document.getElementById("insSearch").value.trim();
-      document.getElementById("insMsg").textContent = "불러오는 중…";
-      try{
-        const out = await auth(`/api/v1/admin/instructors` + (q ? ("?search="+encodeURIComponent(q)) : ""), { method:"GET" });
-        const list = out.instructors || [];
-        document.getElementById("insBody").innerHTML = list.map(i=>`
-          <tr>
-            <td class="mono">${i.id}</td>
-            <td>
-              <div><a href="admin-instructor-detail.html?id=${encodeURIComponent(i.id)}"><b>${esc(i.name)}</b></a></div>
-              <div class="small muted mono">${esc(i.email||"")}</div>
-            </td>
-            <td class="small">${esc(i.instructor_type||"-")}</td>
-            <td>
-              <input type="checkbox" class="form-check-input" data-feature-id="${i.id}" ${i.is_featured ? "checked" : ""} />
-            </td>
-            <td class="row-actions">
-              <button class="btn btn-sm btn-outline-secondary smallbtn" data-copy="${esc(i.email||"")}">이메일 복사</button>
-            </td>
+    </div>
+
+    <div id="insMsg" class="small muted mb-2"></div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead>
+          <tr class="muted">
+            <th style="width:70px">ID</th>
+            <th>강사</th>
+            <th style="width:120px">타입</th>
+            <th style="width:90px">상태</th>
+            <th style="width:140px">최초신청일</th>
+            <th style="width:140px">상태변경일</th>
+            <th>비고</th>
+            <th style="width:70px">메인</th>
+            <th style="width:220px">액션</th>
           </tr>
-        `).join("");
-        document.getElementById("insMsg").textContent = `총 ${list.length}명`;
-      }catch(e){
-        document.getElementById("insMsg").textContent = "오류: " + e.message;
-      }
-    };
-    document.getElementById("btnInsSearch").addEventListener("click", run);
-    document.getElementById("insSearch").addEventListener("keydown", (e)=>{ if(e.key==="Enter") run(); });
-    wrap.addEventListener("change", async (e)=>{
-      const cb = e.target.closest("input[data-feature-id]");
-      if(!cb) return;
-      const id = cb.getAttribute("data-feature-id");
-      try{
-        await auth(`/api/v1/admin/instructors/${id}/feature`, {
-          method:"PUT",
-          body: JSON.stringify({ isFeatured: cb.checked ? 1 : 0 })
-        });
-      }catch(err){
-        alert("저장 실패: " + err.message);
-        cb.checked = !cb.checked;
-      }
-    });
-    wrap.addEventListener("click", (e)=>{
-      const btn = e.target.closest("button[data-copy]");
-      if(!btn) return;
-      navigator.clipboard.writeText(btn.getAttribute("data-copy") || "");
-      btn.textContent = "복사됨";
-      setTimeout(()=>btn.textContent="이메일 복사", 800);
-    });
-    await run();
-  }
+        </thead>
+        <tbody id="insBody"></tbody>
+      </table>
+    </div>
+  `;
+
+  // restore selects
+  document.getElementById("insStatus").value = st.status || "";
+  document.getElementById("insType").value = st.type || "";
+  document.getElementById("insSortBy").value = st.sortBy || "is_featured";
+  document.getElementById("insSortDir").value = st.sortDir || "DESC";
+  document.getElementById("insFeaturedOnly").checked = (st.featured === "1");
+
+  const run = async ()=>{
+    const q = document.getElementById("insSearch").value.trim();
+    const status = document.getElementById("insStatus").value;
+    const type = document.getElementById("insType").value;
+    const featured = document.getElementById("insFeaturedOnly").checked ? "1" : "";
+    const sortBy = document.getElementById("insSortBy").value;
+    const sortDir = document.getElementById("insSortDir").value;
+
+    saveState(STATE_KEY, { search:q, status, type, featured, sortBy, sortDir });
+
+    document.getElementById("insMsg").textContent = "불러오는 중…";
+    try{
+      const qs = [];
+      if(q) qs.push("search="+encodeURIComponent(q));
+      if(status) qs.push("status="+encodeURIComponent(status));
+      if(type) qs.push("instructorType="+encodeURIComponent(type));
+      if(featured) qs.push("featured=1");
+      if(sortBy) qs.push("sortBy="+encodeURIComponent(sortBy));
+      if(sortDir) qs.push("sortDir="+encodeURIComponent(sortDir));
+      const out = await auth(`/api/v1/admin/instructors` + (qs.length ? ("?"+qs.join("&")) : ""), { method:"GET" });
+      const list = out.instructors || [];
+      document.getElementById("insBody").innerHTML = list.map(i=>`
+        <tr>
+          <td class="mono">${i.id}</td>
+          <td>
+            <div><a href="admin-instructor-detail.html?id=${encodeURIComponent(i.id)}"><b>${esc(i.name)}</b></a></div>
+            <div class="small muted mono">${esc(i.email||"")}</div>
+            <div class="small muted mono">${esc(i.phone||"")}</div>
+          </td>
+          <td class="small">${esc(toKo(INSTRUCTOR_TYPE_KO, i.instructor_type||"-"))}</td>
+          <td>${esc(toKo(INSTRUCTOR_STATUS_KO, i.status||"-"))}</td>
+          <td class="mono small">${esc(fmtDT(i.created_at))}</td>
+          <td class="mono small">${esc(fmtDT(i.status_changed_at))}</td>
+          <td class="small" title="${esc(String(i.admin_note||"").replace(/\s+/g," ").trim())}">${esc(snip(i.admin_note))}</td>
+          <td>
+            <input type="checkbox" class="form-check-input" data-feature-id="${i.id}" ${i.is_featured ? "checked" : ""} />
+          </td>
+          <td class="row-actions">
+            <button class="btn btn-sm btn-outline-secondary smallbtn" data-copy="${esc(i.email||"")}">이메일</button>
+            <button class="btn btn-sm btn-outline-secondary smallbtn" data-copy="${esc(i.phone||"")}">전화</button>
+            <a class="btn btn-sm btn-outline-primary smallbtn" href="admin-instructor-detail.html?id=${encodeURIComponent(i.id)}">상세</a>
+          </td>
+        </tr>
+      `).join("");
+      document.getElementById("insMsg").textContent = `총 ${list.length}명`;
+      // store for CSV
+      wrap._lastInstructors = list;
+    }catch(e){
+      document.getElementById("insMsg").textContent = "오류: " + e.message;
+    }
+  };
+
+  document.getElementById("btnInsSearch").addEventListener("click", run);
+  document.getElementById("insSearch").addEventListener("keydown", (e)=>{ if(e.key==="Enter") run(); });
+  ["insStatus","insType","insSortBy","insSortDir","insFeaturedOnly"].forEach(id=>{
+    document.getElementById(id).addEventListener("change", ()=>run());
+  });
+
+  wrap.addEventListener("change", async (e)=>{
+    const cb = e.target.closest("input[data-feature-id]");
+    if(!cb) return;
+    const id = cb.getAttribute("data-feature-id");
+    try{
+      await auth(`/api/v1/admin/instructors/${id}/feature`, {
+        method:"PUT",
+        body: JSON.stringify({ isFeatured: cb.checked ? 1 : 0 })
+      });
+    }catch(err){
+      alert("저장 실패: " + err.message);
+      cb.checked = !cb.checked;
+    }
+  });
+
+  wrap.addEventListener("click", (e)=>{
+    const btn = e.target.closest("button[data-copy]");
+    if(!btn) return;
+    const val = btn.getAttribute("data-copy") || "";
+    if(val) navigator.clipboard.writeText(val);
+    const old = btn.textContent;
+    btn.textContent = "복사됨";
+    setTimeout(()=>btn.textContent=old, 700);
+  });
+
+  document.getElementById("btnInsCSV").addEventListener("click", ()=>{
+    const list = wrap._lastInstructors || [];
+    downloadCSV("instructors.csv", [
+      { key:"id", label:"ID" },
+      { key:"name", label:"이름" },
+      { key:"email", label:"이메일" },
+      { key:"phone", label:"전화" },
+      { key:"instructor_type_ko", label:"타입" },
+      { key:"status_ko", label:"상태" },
+      { key:"created_at", label:"최초신청일" },
+      { key:"status_changed_at", label:"상태변경일" },
+      { key:"admin_note", label:"비고" },
+      { key:"is_featured", label:"메인" }
+    ], list.map(x=>({
+      ...x,
+      instructor_type_ko: toKo(INSTRUCTOR_TYPE_KO, x.instructor_type||"-"),
+      status_ko: toKo(INSTRUCTOR_STATUS_KO, x.status||"-"),
+      created_at: fmtDT(x.created_at),
+      status_changed_at: fmtDT(x.status_changed_at)
+    })));
+  });
+
+  await run();
+}
+
 
   // ---------- Weekly reports admin review ----------
   async function loadWeekly(){
@@ -643,81 +826,308 @@ async function auth(path, opts){
 
   // ---------- instructor applications ----------
   async function loadInstructorApps(){
-    const wrap = $("tab-instApps");
-    wrap.innerHTML = `<div class="muted small mb-2">강사 지원서 검수</div><div class="small muted">불러오는 중…</div>`;
-    try{
-      const out = await auth("/api/v1/admin/instructor-applications", { method:"GET" });
-      const list = out.list || [];
-      wrap.innerHTML = `
-        <div class="small muted mb-2">총 ${list.length}건</div>
-        <div class="table-responsive">
-          <table class="table table-sm align-middle">
-            <thead><tr class="muted"><th>ID</th><th>이름</th><th>연락처</th><th>타입</th><th>상태</th><th>액션</th></tr></thead>
-            <tbody>
-              ${list.map(r=>`
-                <tr>
-                  <td class="mono">${r.id}</td>
-                  <td><a href="admin-instructor-app-detail.html?id=${encodeURIComponent(r.id)}">${esc(r.name)}</a></td>
-                  <td class="mono small">${esc(r.phone)}</td>
-                  <td class="small">${esc(r.instructor_type||"-")}</td>
-                  <td>${esc(toKo(STATUS_KO, r.status))}</td>
-                  <td>
-                    <button class="btn btn-sm btn-success smallbtn" data-ia="${r.id}">승인</button>
-                    <button class="btn btn-sm btn-danger smallbtn" data-ir="${r.id}">반려</button>
-                  </td>
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-        </div>
-      `;
-      wrap.onclick = async (e)=>{
-        const ap = e.target.closest("button[data-ia]");
-        const rj = e.target.closest("button[data-ir]");
-        if(!ap && !rj) return;
-        const id = (ap||rj).getAttribute(ap ? "data-ia":"data-ir");
-        const status = ap ? "APPROVED" : "REJECTED";
-        const note = prompt(status==="APPROVED" ? "승인 메모(선택)" : "반려 사유(선택)", "") || "";
-        await auth(`/api/v1/admin/instructor-applications/${id}/review`, { method:"PUT", body: JSON.stringify({ status, note }) });
-        await loadInstructorApps();
-      };
-    }catch(e){
-      wrap.innerHTML = "오류: " + e.message;
-    }
-  }
+  const wrap = $("tab-instApps");
+  const STATE_KEY = "codeai_admin_instapps_state";
+  const st = loadState(STATE_KEY, { search:"", status:"", sortBy:"created_at", sortDir:"DESC" });
 
-  // ---------- student applications ----------
+  wrap.innerHTML = `
+    <div class="row g-2 align-items-end mb-2">
+      <div class="col-md-5">
+        <label class="form-label mb-1">검색(이름/전화/이메일)</label>
+        <input id="iaSearch" class="form-control" placeholder="예) 홍길동, 010, teacher@" value="${esc(st.search)}" />
+      </div>
+      <div class="col-md-2">
+        <label class="form-label mb-1">상태</label>
+        <select id="iaStatus" class="form-select">
+          <option value="">전체</option>
+          <option value="PENDING">대기</option>
+          <option value="APPROVED">승인</option>
+          <option value="REJECTED">반려</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label mb-1">정렬</label>
+        <div class="d-flex gap-2">
+          <select id="iaSortBy" class="form-select">
+            <option value="created_at">신청일</option>
+            <option value="reviewed_at">상태변경일</option>
+            <option value="status">상태</option>
+            <option value="name">이름</option>
+            <option value="id">ID</option>
+          </select>
+          <select id="iaSortDir" class="form-select" style="max-width:120px">
+            <option value="DESC">내림차순</option>
+            <option value="ASC">오름차순</option>
+          </select>
+        </div>
+      </div>
+      <div class="col-md-2 d-grid">
+        <button id="btnIASearch" class="btn btn-outline-primary">조회</button>
+      </div>
+    </div>
+    <div id="iaMsg" class="small muted mb-2"></div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead><tr class="muted">
+          <th style="width:70px">ID</th>
+          <th>이름</th>
+          <th style="width:120px">연락처</th>
+          <th style="width:120px">타입</th>
+          <th style="width:90px">상태</th>
+          <th style="width:140px">신청일</th>
+          <th style="width:140px">상태변경일</th>
+          <th style="width:220px">액션</th>
+        </tr></thead>
+        <tbody id="iaBody"></tbody>
+      </table>
+    </div>
+  `;
+
+  document.getElementById("iaStatus").value = st.status || "";
+  document.getElementById("iaSortBy").value = st.sortBy || "created_at";
+  document.getElementById("iaSortDir").value = st.sortDir || "DESC";
+
+  const run = async ()=>{
+    const q = document.getElementById("iaSearch").value.trim();
+    const status = document.getElementById("iaStatus").value;
+    const sortBy = document.getElementById("iaSortBy").value;
+    const sortDir = document.getElementById("iaSortDir").value;
+
+    saveState(STATE_KEY, { search:q, status, sortBy, sortDir });
+
+    document.getElementById("iaMsg").textContent = "불러오는 중…";
+    try{
+      const qs = [];
+      if(q) qs.push("search="+encodeURIComponent(q));
+      if(status) qs.push("status="+encodeURIComponent(status));
+      if(sortBy) qs.push("sortBy="+encodeURIComponent(sortBy));
+      if(sortDir) qs.push("sortDir="+encodeURIComponent(sortDir));
+      const out = await auth("/api/v1/admin/instructor-applications" + (qs.length?("?"+qs.join("&")):""), { method:"GET" });
+      const list = out.list || [];
+      document.getElementById("iaBody").innerHTML = list.map(r=>`
+        <tr>
+          <td class="mono">${r.id}</td>
+          <td>
+            <div><a href="admin-instructor-app-detail.html?id=${encodeURIComponent(r.id)}"><b>${esc(r.name)}</b></a></div>
+            <div class="small muted mono">${esc(r.email||"")}</div>
+          </td>
+          <td class="mono small">${esc(r.phone||"")}</td>
+          <td class="small">${esc(toKo(INSTRUCTOR_TYPE_KO, r.instructor_type||"-"))}</td>
+          <td>${esc(toKo(APP_STATUS_KO, r.status||"-"))}</td>
+          <td class="mono small">${esc(fmtDT(r.created_at))}</td>
+          <td class="mono small">${esc(fmtDT(r.status_changed_at || r.reviewed_at))}</td>
+          <td class="row-actions">
+            <button class="btn btn-sm btn-success smallbtn" data-ia="${r.id}">승인</button>
+            <button class="btn btn-sm btn-danger smallbtn" data-ir="${r.id}">반려</button>
+            <button class="btn btn-sm btn-outline-secondary smallbtn" data-copy="${esc(r.phone||"")}">전화</button>
+          </td>
+        </tr>
+      `).join("");
+      document.getElementById("iaMsg").textContent = `총 ${list.length}건`;
+      wrap._lastApps = list;
+    }catch(e){
+      document.getElementById("iaMsg").textContent = "오류: " + e.message;
+    }
+  };
+
+  document.getElementById("btnIASearch").addEventListener("click", run);
+  document.getElementById("iaSearch").addEventListener("keydown", (e)=>{ if(e.key==="Enter") run(); });
+  ["iaStatus","iaSortBy","iaSortDir"].forEach(id=>{
+    document.getElementById(id).addEventListener("change", ()=>run());
+  });
+
+  wrap.onclick = async (e)=>{
+    const ap = e.target.closest("button[data-ia]");
+    const rj = e.target.closest("button[data-ir]");
+    const cp = e.target.closest("button[data-copy]");
+    if(cp){
+      const val = cp.getAttribute("data-copy") || "";
+      if(val) navigator.clipboard.writeText(val);
+      const old = cp.textContent;
+      cp.textContent = "복사됨";
+      setTimeout(()=>cp.textContent=old, 700);
+      return;
+    }
+    if(!ap && !rj) return;
+    const id = (ap||rj).getAttribute(ap ? "data-ia":"data-ir");
+    const status = ap ? "APPROVED" : "REJECTED";
+    const note = prompt(status==="APPROVED" ? "승인 메모(선택)" : "반려 사유(선택)", "") || "";
+    await auth(`/api/v1/admin/instructor-applications/${id}/review`, { method:"PUT", body: JSON.stringify({ status, note }) });
+    await run();
+  };
+
+  await run();
+}
+
+// ---------- student applications ----------
+
   async function loadStudents(){
-    const wrap = $("tab-students");
-    wrap.innerHTML = `<div class="muted small mb-2">학생 신청 목록</div><div class="small muted">불러오는 중…</div>`;
-    try{
-      const out = await auth("/api/v1/admin/student-applications", { method:"GET" });
-      const list = out.list || [];
-      wrap.innerHTML = `
-        <div class="small muted mb-2">총 ${list.length}건</div>
-        <div class="table-responsive">
-          <table class="table table-sm align-middle">
-            <thead><tr class="muted"><th>ID</th><th>이름</th><th>전화</th><th>선호타입</th><th>상태</th></tr></thead>
-            <tbody>
-              ${list.map(r=>`
-                <tr>
-                  <td class="mono">${r.id}</td>
-                  <td><a href="admin-student-detail.html?id=${encodeURIComponent(r.id)}">${esc(r.name)}</a></td>
-                  <td class="mono small">${esc(r.phone)}</td>
-                  <td class="small">${esc(toKo(TYPE_KO, r.preferred_instructor_type||"-"))}</td>
-                  <td>${esc(toKo(STATUS_KO, r.status))}</td>
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-        </div>
-      `;
-    }catch(e){
-      wrap.innerHTML = "오류: " + e.message;
-    }
-  }
+  const wrap = $("tab-students");
+  const STATE_KEY = "codeai_admin_students_state";
+  const st = loadState(STATE_KEY, { search:"", status:"", mode:"", sortBy:"created_at", sortDir:"DESC" });
 
-  // Auto-login if token exists
+  wrap.innerHTML = `
+    <div class="row g-2 align-items-end mb-2">
+      <div class="col-md-5">
+        <label class="form-label mb-1">검색(이름/전화)</label>
+        <input id="saSearch" class="form-control" placeholder="예) 학생01, 010" value="${esc(st.search)}" />
+      </div>
+      <div class="col-md-2">
+        <label class="form-label mb-1">상태</label>
+        <select id="saStatus" class="form-select">
+          <option value="">전체</option>
+          <option value="SUBMITTED">신청</option>
+          <option value="MATCHING">매칭중</option>
+          <option value="INSTRUCTOR_SELECTED">강사선택</option>
+          <option value="ENROLLED">등록</option>
+          <option value="CANCELLED">취소</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label mb-1">수업방식</label>
+        <select id="saMode" class="form-select">
+          <option value="">전체</option>
+          <option value="ZOOM">온라인(줌)</option>
+          <option value="OFFLINE_1_1">대면 1:1</option>
+          <option value="OFFLINE_GROUP">대면 그룹</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label mb-1">정렬</label>
+        <div class="d-flex gap-2">
+          <select id="saSortBy" class="form-select">
+            <option value="created_at">최초신청일</option>
+            <option value="status_changed_at">상태변경일</option>
+            <option value="status">상태</option>
+            <option value="name">이름</option>
+            <option value="id">ID</option>
+          </select>
+          <select id="saSortDir" class="form-select" style="max-width:120px">
+            <option value="DESC">내림차순</option>
+            <option value="ASC">오름차순</option>
+          </select>
+        </div>
+      </div>
+      <div class="col-md-12 d-flex justify-content-end gap-2 mt-2">
+        <button id="btnSaCSV" class="btn btn-outline-secondary">CSV</button>
+        <button id="btnSaSearch" class="btn btn-outline-primary">조회</button>
+      </div>
+    </div>
+
+    <div id="saMsg" class="small muted mb-2"></div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead><tr class="muted">
+          <th style="width:70px">ID</th>
+          <th>이름</th>
+          <th style="width:120px">전화</th>
+          <th style="width:120px">수업방식</th>
+          <th style="width:120px">선호타입</th>
+          <th style="width:90px">상태</th>
+          <th style="width:140px">최초신청일</th>
+          <th style="width:140px">상태변경일</th>
+          <th>비고</th>
+          <th style="width:90px">강사</th>
+          <th style="width:140px">액션</th>
+        </tr></thead>
+        <tbody id="saBody"></tbody>
+      </table>
+    </div>
+  `;
+
+  document.getElementById("saStatus").value = st.status || "";
+  document.getElementById("saMode").value = st.mode || "";
+  document.getElementById("saSortBy").value = st.sortBy || "created_at";
+  document.getElementById("saSortDir").value = st.sortDir || "DESC";
+
+  const run = async ()=>{
+    const q = document.getElementById("saSearch").value.trim();
+    const status = document.getElementById("saStatus").value;
+    const mode = document.getElementById("saMode").value;
+    const sortBy = document.getElementById("saSortBy").value;
+    const sortDir = document.getElementById("saSortDir").value;
+
+    saveState(STATE_KEY, { search:q, status, mode, sortBy, sortDir });
+
+    document.getElementById("saMsg").textContent = "불러오는 중…";
+    try{
+      const qs = [];
+      if(q) qs.push("search="+encodeURIComponent(q));
+      if(status) qs.push("status="+encodeURIComponent(status));
+      if(mode) qs.push("mode="+encodeURIComponent(mode));
+      if(sortBy) qs.push("sortBy="+encodeURIComponent(sortBy));
+      if(sortDir) qs.push("sortDir="+encodeURIComponent(sortDir));
+      const out = await auth("/api/v1/admin/student-applications" + (qs.length?("?"+qs.join("&")):""), { method:"GET" });
+      const list = out.list || [];
+      document.getElementById("saBody").innerHTML = list.map(r=>`
+        <tr>
+          <td class="mono">${r.id}</td>
+          <td><a href="admin-student-detail.html?id=${encodeURIComponent(r.id)}"><b>${esc(r.name)}</b></a></td>
+          <td class="mono small">${esc(r.phone||"")}</td>
+          <td class="small">${esc(toKo(MODE_KO, r.mode||"-"))}</td>
+          <td class="small">${esc(toKo(STUDENT_PREF_KO, r.preferred_instructor_type||"-"))}</td>
+          <td>${esc(toKo(STUDENT_STATUS_KO, r.status||"-"))}</td>
+          <td class="mono small">${esc(fmtDT(r.created_at))}</td>
+          <td class="mono small">${esc(fmtDT(r.status_changed_at))}</td>
+          <td class="small" title="${esc(String(r.admin_note||"").replace(/\s+/g," ").trim())}">${esc(snip(r.admin_note))}</td>
+          <td class="small">${esc(r.selected_instructor_name ? snip(r.selected_instructor_name, 8) : "-")}</td>
+          <td class="row-actions">
+            <button class="btn btn-sm btn-outline-secondary smallbtn" data-copy="${esc(r.phone||"")}">전화</button>
+            <a class="btn btn-sm btn-outline-primary smallbtn" href="admin-student-detail.html?id=${encodeURIComponent(r.id)}">상세</a>
+          </td>
+        </tr>
+      `).join("");
+      document.getElementById("saMsg").textContent = `총 ${list.length}건`;
+      wrap._lastStudents = list;
+    }catch(e){
+      document.getElementById("saMsg").textContent = "오류: " + e.message;
+    }
+  };
+
+  document.getElementById("btnSaSearch").addEventListener("click", run);
+  document.getElementById("saSearch").addEventListener("keydown", (e)=>{ if(e.key==="Enter") run(); });
+  ["saStatus","saMode","saSortBy","saSortDir"].forEach(id=>{
+    document.getElementById(id).addEventListener("change", ()=>run());
+  });
+
+  wrap.addEventListener("click", (e)=>{
+    const btn = e.target.closest("button[data-copy]");
+    if(!btn) return;
+    const val = btn.getAttribute("data-copy") || "";
+    if(val) navigator.clipboard.writeText(val);
+    const old = btn.textContent;
+    btn.textContent = "복사됨";
+    setTimeout(()=>btn.textContent=old, 700);
+  });
+
+  document.getElementById("btnSaCSV").addEventListener("click", ()=>{
+    const list = wrap._lastStudents || [];
+    downloadCSV("student_applications.csv", [
+      { key:"id", label:"ID" },
+      { key:"name", label:"이름" },
+      { key:"phone", label:"전화" },
+      { key:"mode_ko", label:"수업방식" },
+      { key:"preferred_ko", label:"선호타입" },
+      { key:"status_ko", label:"상태" },
+      { key:"created_at", label:"최초신청일" },
+      { key:"status_changed_at", label:"상태변경일" },
+      { key:"selected_instructor_name", label:"선택강사" },
+      { key:"admin_note", label:"비고" }
+    ], list.map(x=>({
+      ...x,
+      mode_ko: toKo(MODE_KO, x.mode||"-"),
+      preferred_ko: toKo(STUDENT_PREF_KO, x.preferred_instructor_type||"-"),
+      status_ko: toKo(STUDENT_STATUS_KO, x.status||"-"),
+      created_at: fmtDT(x.created_at),
+      status_changed_at: fmtDT(x.status_changed_at)
+    })));
+  });
+
+  await run();
+}
+
+// Auto-login if token exists
+
   (async ()=>{
     if(localStorage.getItem(TOKEN_KEY)){
       showApp();
