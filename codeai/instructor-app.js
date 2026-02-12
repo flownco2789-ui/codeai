@@ -1,11 +1,5 @@
 (function(){
-  
-  // Safe DOM event binder (prevents null/addEventListener crashes)
-  function on(id, ev, fn){
-    var el = document.getElementById(id);
-    if (el) el.addEventListener(ev, fn);
-  }
-const TOKEN_KEY = "codeai_instructor_token";
+  const TOKEN_KEY = "codeai_instructor_token";
   const $ = (id)=>document.getElementById(id);
   const esc = (s)=>String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
 
@@ -74,8 +68,9 @@ const TOKEN_KEY = "codeai_instructor_token";
     }
   }
   $("btnChangePw").addEventListener("click", doChangePw);
-  on("btnCancelChange","click", ()=>{ doLogout("로그아웃 되었습니다."); }); });
-  async function doLogin(){
+  var __btnCancelChange = $("btnCancelChange");
+  if(__btnCancelChange) __btnCancelChange.addEventListener("click", ()=>{ doLogout("로그아웃 되었습니다."); });
+async function doLogin(){
     $("loginMsg").textContent = "로그인 중…";
     try{
       const out = await CodeAI.request("/api/v1/instructor/auth/login", {
@@ -95,9 +90,9 @@ const TOKEN_KEY = "codeai_instructor_token";
       $("loginMsg").textContent = "로그인 실패: " + e.message;
     }
   }
-  on("btnLogin","click", doLogin);
-
-  async function loadEnrollments(){
+  var __btnLogin = $("btnLogin");
+  if(__btnLogin) __btnLogin.addEventListener("click", doLogin);
+async function loadEnrollments(){
     $("msg").textContent = "수강 목록 불러오는 중…";
     try{
       const out = await CodeAI.authRequest("/api/v1/instructor/enrollments", TOKEN_KEY, { method:"GET" });
@@ -665,5 +660,6 @@ function renderComparison(sortedAll){
     </div>
   `;
 }
+
 
 
