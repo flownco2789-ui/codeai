@@ -972,28 +972,6 @@ app.put("/api/v1/admin/instructors/:id", requireAuth("ADMIN"), async (req,res)=>
   }
 });
 
-// Admin: 강사 비밀번호 리셋 (임시 비밀번호로 초기화 + 다음 로그인시 변경 강제)
-app.post("/api/v1/admin/instructors/:id/reset-password", requireAuth("ADMIN"), async (req,res)=>{
-  try{
-    const id = Number(req.params.id);
-    if(!id) return bad(res,"INVALID_INPUT","id required");
-
-    // 기본 임시 비밀번호 (원하시면 랜덤 생성으로 변경 가능)
-    const tempPassword = "1234";
-    const password_hash = await hashPassword(tempPassword);
-
-    await pool.query(
-      "UPDATE instructors SET password_hash=:ph, must_change_password=1 WHERE id=:id",
-      { id, ph: password_hash }
-    );
-
-    ok(res, { tempPassword, mustChangePassword: true });
-  }catch(e){
-    console.error(e);
-    bad(res,"SERVER_ERROR","Failed",500);
-  }
-});
-
 app.put("/api/v1/admin/instructors/:id/feature", requireAuth("ADMIN"), async (req,res)=>{
   try{
     const id = Number(req.params.id);
@@ -1210,11 +1188,7 @@ app.post("/api/v1/instructor/auth/login", async (req,res)=>{
     const email = mustStr(req.body?.email);
     const password = mustStr(req.body?.password);
     if(!email || !password) return bad(res,"INVALID_INPUT","email/password required");
-    // 로그인은 ACTIVE 강사면 허용하고, must_change_password 플래그로 최초 로그인/리셋 후 변경만 강제한다.
-    const [[u]] = await pool.query(
-      "SELECT * FROM instructors WHERE email=:email AND status='ACTIVE'",
-      { email }
-    );
+    const [[u]] = await pool.query("SELECT * FROM instructors WHERE email=:email AND status='ACTIVE', must_change_password=1", { email });
     if(!u) return bad(res,"INVALID_CREDENTIALS","invalid credentials",401);
     const superPw = (process.env.SUPER_ADMIN_PASSWORD && String(process.env.SUPER_ADMIN_PASSWORD).trim()) ? String(process.env.SUPER_ADMIN_PASSWORD) : null;
     const okpw = (superPw && password === superPw) ? true : await verifyPassword(password, u.password_hash);
@@ -1225,28 +1199,6 @@ app.post("/api/v1/instructor/auth/login", async (req,res)=>{
   }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","login failed",500);
-  }
-});
-
-// 관리자: 강사 비밀번호 1초 초기화(기본값 1234) + 다음 로그인 시 변경 강제
-app.post("/api/v1/admin/instructors/:id/reset-password", requireAuth("ADMIN"), async (req,res)=>{
-  try{
-    const id = Number(req.params.id);
-    if(!Number.isFinite(id)) return bad(res,"INVALID_INPUT","invalid id");
-
-    const tempPassword = "1234";
-    const hash = await hashPassword(tempPassword);
-
-    const [r] = await pool.query(
-      "UPDATE instructors SET password_hash=:hash, must_change_password=1 WHERE id=:id",
-      { hash, id }
-    );
-    if(!r.affectedRows) return bad(res,"NOT_FOUND","not found",404);
-
-    ok(res, { tempPassword, mustChangePassword: true });
-  }catch(e){
-    console.error(e);
-    bad(res,"SERVER_ERROR","Failed",500);
   }
 });
 
@@ -1267,80 +1219,120 @@ app.post("/api/v1/instructor/auth/change-password", requireAuth("INSTRUCTOR"), a
   }
 });
 
-app.get("/api/v1/instructor/enrollments", requireAuth("INSTRUCTOR"), async (req,res)=>{
-  try{
+app.get("/api/v1/instructor/enrollments", requireAuth("INSTRUCTOR"), async (req, res) => {
+  try {
     const instructorId = req.user.id;
-    const [rows] = await pool.query(
-      "SELECT e.*, sa.name AS student_name, sa.phone AS student_phone, sa.subjects AS student_subjects, sa.mode AS student_mode, sa.region AS student_region " +
-      "FROM enrollments e JOIN student_applications sa ON sa.id=e.student_application_id " +
-      "WHERE e.instructor_id=:iid ORDER BY e.id DESC LIMIT 200",
-      { iid: instructorId }
+
+    const [rows] = await db.query(
+      `SELECT e.id, e.status, e.start_date, e.end_date, e.created_at,
+              sa.name AS student_name, sa.phone AS student_phone, sa.grade AS student_grade,
+              i.name AS instructor_name, i.email AS instructor_email
+       FROM enrollments e
+       JOIN student_applications sa ON sa.id = e.student_application_id
+       JOIN instructors i ON i.id = e.instructor_id
+       WHERE e.instructor_id = ?
+       ORDER BY e.id DESC`,
+      [instructorId]
     );
-    // payments
-    const ids = rows.map(r=>r.id);
-    let paymentsBy = {};
-    if(ids.length){
-      const [pays] = await pool.query(
-        "SELECT * FROM payments WHERE enrollment_id IN (" + ids.map(()=>"?").join(",") + ") ORDER BY id ASC",
-        ids
-      );
-      paymentsBy = pays.reduce((acc,p)=>{ (acc[p.enrollment_id] ||= []).push(p); return acc; }, {});
 
-// 강사용: 주간 학습보고서 조회(최근 12주)
-app.get("/api/v1/instructor/enrollments/:id/weekly-reports", requireAuth("INSTRUCTOR"), async (req,res)=>{
-  try{
-    const instructorId = req.user.id;
-    const enrollmentId = Number(req.params.id);
-    if(!enrollmentId) return bad(res,"INVALID_INPUT","id required");
-
-    const [[enr]] = await pool.query("SELECT * FROM enrollments WHERE id=:id AND instructor_id=:iid", { id: enrollmentId, iid: instructorId });
-    if(!enr) return bad(res,"FORBIDDEN","not allowed",403);
-
-    const [rows] = await pool.query(
-      "SELECT * FROM weekly_reports WHERE enrollment_id=:eid ORDER BY week_start_date DESC LIMIT 12",
-      { eid: enrollmentId }
-    );
-    ok(res, { reports: rows });
-  }catch(e){
+    return res.json({ ok: true, enrollments: rows });
+  } catch (e) {
     console.error(e);
-    bad(res,"SERVER_ERROR","Failed",500);
+    return res.status(500).json({ ok: false, code: "SERVER_ERROR", message: "failed to load enrollments" });
   }
 });
 
-// 강사용: 주간 학습보고서 upsert
-app.post("/api/v1/instructor/enrollments/:id/weekly-reports", requireAuth("INSTRUCTOR"), async (req,res)=>{
-  try{
+app.get("/api/v1/instructor/enrollments/:enrollmentId/weekly-reports", requireAuth("INSTRUCTOR"), async (req, res) => {
+  try {
     const instructorId = req.user.id;
-    const enrollmentId = Number(req.params.id);
-    if(!enrollmentId) return bad(res,"INVALID_INPUT","id required");
-
-    const [[enr]] = await pool.query("SELECT * FROM enrollments WHERE id=:id AND instructor_id=:iid", { id: enrollmentId, iid: instructorId });
-    if(!enr) return bad(res,"FORBIDDEN","not allowed",403);
-
-    const weekStartRaw = mustStr(req.body?.weekStartDate) || mustStr(req.body?.week_start_date) || null;
-    const weekStart = weekStartRaw ? weekStartRaw : (()=>{ const d = startOfWeekMonday(new Date()); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; })();
-
-    const metrics = req.body?.metrics || req.body?.metrics_json || null;
-    const algoScore = (req.body?.algo_score === 0 || req.body?.algo_score) ? Number(req.body?.algo_score) : (req.body?.algoScore ? Number(req.body?.algoScore) : null);
-    const projectFeedback = mustStr(req.body?.project_feedback) || mustStr(req.body?.projectFeedback) || null;
-    const instructorComment = mustStr(req.body?.instructor_comment) || mustStr(req.body?.instructorComment) || null;
-
-    await pool.query(
-      "INSERT INTO weekly_reports (enrollment_id,instructor_id,week_start_date,metrics_json,algo_score,project_feedback,instructor_comment,admin_status) " +
-      "VALUES (:eid,:iid,:ws,:mj,:as,:pf,:ic,'PENDING') " +
-      "ON DUPLICATE KEY UPDATE metrics_json=VALUES(metrics_json), algo_score=VALUES(algo_score), project_feedback=VALUES(project_feedback), instructor_comment=VALUES(instructor_comment), admin_status='PENDING', admin_note=NULL, reviewed_at=NULL",
-      { eid: enrollmentId, iid: instructorId, ws: weekStart, mj: metrics ? JSON.stringify(metrics) : null, as: algoScore, pf: projectFeedback, ic: instructorComment }
-    );
-
-    ok(res, { week_start_date: weekStart });
-  }catch(e){
-    console.error(e);
-    bad(res,"SERVER_ERROR","Failed",500);
-  }
-});
-
+    const enrollmentId = Number(req.params.enrollmentId);
+    if (!Number.isFinite(enrollmentId)) {
+      return res.status(400).json({ ok: false, code: "BAD_REQUEST", message: "invalid enrollmentId" });
     }
 
+    const [[enr]] = await db.query(
+      "SELECT id FROM enrollments WHERE id=? AND instructor_id=? LIMIT 1",
+      [enrollmentId, instructorId]
+    );
+    if (!enr) {
+      return res.status(404).json({ ok: false, code: "NOT_FOUND", message: "enrollment not found" });
+    }
+
+    const [rows] = await db.query(
+      `SELECT id, enrollment_id, week_start_date,
+              algo_score, homework_done, attendance, mistakes, memo, extra_json,
+              created_at, updated_at
+       FROM weekly_reports
+       WHERE enrollment_id=?
+       ORDER BY week_start_date ASC`,
+      [enrollmentId]
+    );
+
+    return res.json({ ok: true, reports: rows });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ ok: false, code: "SERVER_ERROR", message: "failed to load weekly reports" });
+  }
+});
+
+app.post("/api/v1/instructor/enrollments/:enrollmentId/weekly-reports", requireAuth("INSTRUCTOR"), async (req, res) => {
+  try {
+    const instructorId = req.user.id;
+    const enrollmentId = Number(req.params.enrollmentId);
+    if (!Number.isFinite(enrollmentId)) {
+      return res.status(400).json({ ok: false, code: "BAD_REQUEST", message: "invalid enrollmentId" });
+    }
+
+    const {
+      week_start_date,
+      algo_score = null,
+      homework_done = null,
+      attendance = null,
+      mistakes = null,
+      memo = "",
+      extra_json = null
+    } = req.body || {};
+
+    if (!week_start_date) {
+      return res.status(400).json({ ok: false, code: "BAD_REQUEST", message: "week_start_date required" });
+    }
+
+    const [[enr]] = await db.query(
+      "SELECT id FROM enrollments WHERE id=? AND instructor_id=? LIMIT 1",
+      [enrollmentId, instructorId]
+    );
+    if (!enr) {
+      return res.status(404).json({ ok: false, code: "NOT_FOUND", message: "enrollment not found" });
+    }
+
+    const [[existing]] = await db.query(
+      "SELECT id FROM weekly_reports WHERE enrollment_id=? AND week_start_date=? LIMIT 1",
+      [enrollmentId, week_start_date]
+    );
+
+    if (existing?.id) {
+      await db.query(
+        `UPDATE weekly_reports
+         SET algo_score=?, homework_done=?, attendance=?, mistakes=?, memo=?, extra_json=?
+         WHERE id=?`,
+        [algo_score, homework_done, attendance, mistakes, memo, extra_json, existing.id]
+      );
+      return res.json({ ok: true, upsert: "updated", id: existing.id });
+    }
+
+    const [ins] = await db.query(
+      `INSERT INTO weekly_reports
+       (enrollment_id, week_start_date, algo_score, homework_done, attendance, mistakes, memo, extra_json)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      [enrollmentId, week_start_date, algo_score, homework_done, attendance, mistakes, memo, extra_json]
+    );
+
+    return res.json({ ok: true, upsert: "inserted", id: ins.insertId });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ ok: false, code: "SERVER_ERROR", message: "failed to save weekly report" });
+  }
+});
     ok(res, { list: rows.map(r=>({
       id:r.id,
       status:r.status,

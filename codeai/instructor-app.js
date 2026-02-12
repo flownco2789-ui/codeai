@@ -1,41 +1,32 @@
 (function(){
   const TOKEN_KEY = "codeai_instructor_token";
+let WEEKLY_CACHE = new Map(); // key: YYYY-MM-DD (week_start_date)
   const $ = (id)=>document.getElementById(id);
+
+function fillWeeklyFormFromCache(){
+  const d = $("weekStartDate")?.value;
+  if(!d) return;
+  const r = WEEKLY_CACHE.get(d);
+  if(!r){
+    // clear form for new entry
+    $("algoScore").value = "";
+    $("homeworkDone").value = "";
+    $("attendance").value = "";
+    $("mistakes").value = "";
+    $("memo").value = "";
+    return;
+  }
+  $("algoScore").value = (r.algo_score ?? "");
+  $("homeworkDone").value = (r.homework_done ?? "");
+  $("attendance").value = (r.attendance ?? "");
+  $("mistakes").value = (r.mistakes ?? "");
+  $("memo").value = (r.memo ?? "");
+}
+
+
   const esc = (s)=>String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
 
-  let ENROLLMENTS = [];
-  let ENROLLMENTS_BY_ID = new Map();
-
-  
-  function normalizeWeekStart(dateStr){
-    if(!dateStr) return "";
-    const d = new Date(dateStr);
-    if(isNaN(d.getTime())) return dateStr;
-    const day = d.getDay(); // 0=Sun..6=Sat
-    const diff = (day===0 ? -6 : 1-day); // Monday start
-    d.setDate(d.getDate()+diff);
-    return d.toISOString().slice(0,10);
-  }
-
-  function showSelectedEnrollment(){
-    const eid = $("enrSel").value;
-    const e = ENROLLMENTS_BY_ID.get(String(eid));
-    if(!e){ if($("enrInfo")) $("enrInfo").textContent = ""; return; }
-    const student = e.student_name || e.studentName || (e.student && (e.student.name||e.student.student_name)) || "";
-    const target  = e.target || e.student_target || (e.student && e.student.target) || "";
-    const status  = e.status || "";
-    const start   = e.start_date || e.startDate || "";
-    const end     = e.end_date || e.endDate || "";
-    const parts = [];
-    if(student) parts.push("학생: "+student);
-    if(target) parts.push("대상: "+target);
-    if(status) parts.push("상태: "+status);
-    if(start) parts.push("시작: "+start);
-    if(end) parts.push("종료: "+end);
-    if($("enrInfo")) $("enrInfo").textContent = parts.join(" / ");
-  }
-
-function showLogin(msg){
+  function showLogin(msg){
     $("app").classList.add("d-none");
     $("loginCard").classList.remove("d-none");
     $("btnLogout").classList.add("d-none");
@@ -100,9 +91,8 @@ function showLogin(msg){
     }
   }
   $("btnChangePw").addEventListener("click", doChangePw);
-  var __btnCancelChange = $("btnCancelChange");
-  if(__btnCancelChange) __btnCancelChange.addEventListener("click", ()=>{ doLogout("로그아웃 되었습니다."); });
-async function doLogin(){
+  $("btnCancelChange").addEventListener("click", ()=>{ doLogout("로그아웃 되었습니다."); });
+  async function doLogin(){
     $("loginMsg").textContent = "로그인 중…";
     try{
       const out = await CodeAI.request("/api/v1/instructor/auth/login", {
@@ -122,17 +112,16 @@ async function doLogin(){
       $("loginMsg").textContent = "로그인 실패: " + e.message;
     }
   }
-  var __btnLogin = $("btnLogin");
-  if(__btnLogin) __btnLogin.addEventListener("click", doLogin);
-async function loadEnrollments(){
+  $("btnLogin").addEventListener("click", doLogin);
+
+  async function loadEnrollments(){
     $("msg").textContent = "수강 목록 불러오는 중…";
     try{
       const out = await CodeAI.authRequest("/api/v1/instructor/enrollments", TOKEN_KEY, { method:"GET" });
-      const list = out.enrollments || out.list || [];
+      const list = out.enrollments || [];
       const sel = $("enrSel");
       sel.innerHTML = list.map(e=>{
-        const sname = (e.student_name || (e.studentApplication && e.studentApplication.name)) || "학생";
-        const label = `#${e.id} / ${sname} / ${e.status}`;
+        const label = `#${e.id} / ${e.student_name || "학생"} / ${e.status}`;
         return `<option value="${e.id}">${esc(label)}</option>`;
       }).join("");
       $("msg").textContent = list.length ? "학생을 선택하세요." : "배정된 수강이 없습니다.";
@@ -567,14 +556,8 @@ paint();
   $("btnSave").addEventListener("click", saveWeekly);
   $("btnRefresh").addEventListener("click", async ()=>{ await loadEnrollments(); });
 
-    $("weekStartDate").addEventListener("change", async ()=>{
-      const v = $("weekStartDate").value;
-      const n = normalizeWeekStart(v);
-      if(n && n!==v) $("weekStartDate").value = n;
-      await loadWeekly();
-    });
-
-  $("enrSel").addEventListener("change", async ()=>{ showSelectedEnrollment(); await loadWeekly(); });
+  $("enrSel").addEventListener("change", loadWeekly);
+    $("weekStartDate").addEventListener("change", ()=>{ if(WEEKLY_CACHE.size){ fillWeeklyFormFromCache(); } else { loadWeekly(); } });
 
   (async ()=>{
     if(localStorage.getItem(TOKEN_KEY)){
@@ -699,6 +682,5 @@ function renderComparison(sortedAll){
     </div>
   `;
 }
-
 
 
