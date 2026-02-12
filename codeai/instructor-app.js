@@ -7,6 +7,7 @@
     $("app").classList.add("d-none");
     $("loginCard").classList.remove("d-none");
     $("btnLogout").classList.add("d-none");
+    $("changePwCard").classList.add("d-none");
     if(msg) $("loginMsg").textContent = msg;
   }
 
@@ -14,6 +15,7 @@
     $("loginCard").classList.add("d-none");
     $("app").classList.remove("d-none");
     $("btnLogout").classList.remove("d-none");
+    $("changePwCard").classList.add("d-none");
   }
 
   function doLogout(msg){
@@ -27,8 +29,46 @@
     showLogin(msg || "로그아웃 되었습니다.");
   }
 
+  function showChangePw(msg){
+    $("app").classList.add("d-none");
+    $("loginCard").classList.add("d-none");
+    $("changePwCard").classList.remove("d-none");
+    $("btnLogout").classList.remove("d-none");
+    $("changePwCard").classList.add("d-none");
+    if(msg) $("changePwMsg").textContent = msg;
+  }
+
+
   $("btnLogout").addEventListener("click", ()=> doLogout("로그아웃 되었습니다."));
 
+
+
+  async function doChangePw(){
+    $("changePwMsg").textContent = "변경 중…";
+    const a = $("newPw").value;
+    const b = $("newPw2").value;
+    if(!a || a.length < 4) { $("changePwMsg").textContent = "비밀번호는 4자 이상 입력해주세요."; return; }
+    if(a !== b){ $("changePwMsg").textContent = "비밀번호 확인이 일치하지 않습니다."; return; }
+    try{
+      await CodeAI.authRequest("/api/v1/instructor/auth/change-password", TOKEN_KEY, {
+        method:"POST",
+        body: JSON.stringify({ newPassword: a })
+      });
+      $("newPw").value = "";
+      $("newPw2").value = "";
+      $("changePwMsg").textContent = "";
+      showApp();
+      await loadEnrollments();
+    }catch(e){
+      if(String(e.message).includes("UNAUTHORIZED") || String(e.message).includes("HTTP_401")){
+        doLogout("세션이 만료되어 로그아웃 되었습니다. 다시 로그인 해주세요.");
+        return;
+      }
+      $("changePwMsg").textContent = "변경 실패: " + e.message;
+    }
+  }
+  $("btnChangePw").addEventListener("click", doChangePw);
+  $("btnCancelChange").addEventListener("click", ()=>{ doLogout("로그아웃 되었습니다."); });
   async function doLogin(){
     $("loginMsg").textContent = "로그인 중…";
     try{
@@ -37,6 +77,11 @@
         body: JSON.stringify({ email: $("email").value.trim(), password: $("password").value })
       });
       localStorage.setItem(TOKEN_KEY, out.token);
+      if(out && out.forceChangePassword){
+        showChangePw("최초 로그인입니다. 비밀번호를 변경해주세요.");
+        $("loginMsg").textContent = "";
+        return;
+      }
       showApp();
       $("loginMsg").textContent = "";
       await loadEnrollments();

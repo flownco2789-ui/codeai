@@ -53,6 +53,25 @@ canvas{width:100%;height:140px;}
       <div id="loginMsg" class="small muted mt-2"></div>
     </div>
 
+
+
+    <div id="changePwCard" class="card p-3 mb-3 d-none">
+      <div class="mb-2"><b>비밀번호 변경</b> <span class="muted small">(최초 로그인 시 필수)</span></div>
+      <div class="row g-2 align-items-end">
+        <div class="col-md-5">
+          <label class="form-label">새 비밀번호</label>
+          <input id="newPw" class="form-control" type="password" placeholder="8자 이상 권장" />
+        </div>
+        <div class="col-md-5">
+          <label class="form-label">새 비밀번호 확인</label>
+          <input id="newPw2" class="form-control" type="password" />
+        </div>
+        <div class="col-md-2 d-grid">
+          <button id="btnChangePw" class="btn btn-primary">변경</button>
+        </div>
+      </div>
+      <div id="changePwMsg" class="small muted mt-2"></div>
+    </div>
     <div id="app" class="d-none">
       <div class="card p-3 mb-3">
         <div class="row g-2 align-items-end">

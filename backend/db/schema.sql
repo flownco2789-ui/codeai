@@ -175,6 +175,8 @@ ALTER TABLE instructors ADD INDEX idx_instructors_featured (is_featured);
 
 -- ===== Admin memo(비고) =====
 ALTER TABLE instructors ADD COLUMN admin_note TEXT NULL;
+ALTER TABLE instructors ADD COLUMN must_change_password TINYINT(1) NOT NULL DEFAULT 0;
+
 ALTER TABLE student_applications ADD COLUMN admin_note TEXT NULL;
 
 CREATE TABLE IF NOT EXISTS portal_code_events (

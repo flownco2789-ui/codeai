@@ -174,7 +174,7 @@ app.get("/api/v1/public/instructors", async (req,res)=>{
     const instructorType = (instructorTypeRaw && instructorTypeRaw.trim()) ? instructorTypeRaw.trim() : null;
 const featured = mustStr(req.query?.featured) || null;
 
-    let sql = "SELECT id,name,subjects,modes,region,instructor_type,is_featured,education,career,major,age,gender,photo_url FROM instructors WHERE status='ACTIVE', must_change_password=1";
+    let sql = "SELECT id,name,subjects,modes,region,instructor_type,is_featured,education,career,major,age,gender,photo_url FROM instructors WHERE status='ACTIVE'";
     const params = {};
     if(region){
       sql += " AND (region IS NULL OR region='' OR region LIKE :regionLike)";
@@ -225,7 +225,7 @@ app.get("/api/v1/public/featured-instructors", async (req,res)=>{
   try{
     const [rows] = await pool.query(
       "SELECT id,name,subjects,modes,region,instructor_type,is_featured,education,career,major,age,gender,photo_url " +
-      "FROM instructors WHERE status='ACTIVE', must_change_password=1 AND is_featured=1 ORDER BY id DESC LIMIT 20"
+      "FROM instructors WHERE status='ACTIVE' AND is_featured=1 ORDER BY id DESC LIMIT 20"
     );
     ok(res, { instructors: rows.map(r=>({
       id:r.id, name:r.name,
@@ -244,7 +244,7 @@ app.get("/api/v1/public/featured-instructors", async (req,res)=>{
 // 통계(총 강사 수 / 총 수강생 수)
 app.get("/api/v1/public/stats", async (req,res)=>{
   try{
-    const [[a]] = await pool.query("SELECT COUNT(*) AS cnt FROM instructors WHERE status='ACTIVE', must_change_password=1");
+    const [[a]] = await pool.query("SELECT COUNT(*) AS cnt FROM instructors WHERE status='ACTIVE'");
     const [[b]] = await pool.query("SELECT COUNT(DISTINCT phone) AS cnt FROM student_applications");
     ok(res, { total_instructors: Number(a.cnt||0), total_students: Number(b.cnt||0) });
   }catch(e){
@@ -265,7 +265,7 @@ app.post("/api/v1/public/student-applications/:id/select-instructor", async (req
     const [[sa]] = await pool.query("SELECT * FROM student_applications WHERE id=:id", { id: appId });
     if(!sa) return bad(res,"NOT_FOUND","student application not found",404);
 
-    const [[inst]] = await pool.query("SELECT id,name,phone,email,region FROM instructors WHERE id=:id AND status='ACTIVE', must_change_password=1", { id: instructorId });
+    const [[inst]] = await pool.query("SELECT id,name,phone,email,region FROM instructors WHERE id=:id AND status='ACTIVE'", { id: instructorId });
     if(!inst) return bad(res,"NOT_FOUND","instructor not found",404);
 
     await pool.query(
@@ -418,9 +418,7 @@ app.post("/api/v1/admin/auth/login", async (req,res)=>{
     if(!email || !password) return bad(res,"INVALID_INPUT","email/password required");
     const [[u]] = await pool.query("SELECT * FROM admin_users WHERE email=:email AND is_active=1", { email });
     if(!u) return bad(res,"INVALID_CREDENTIALS","invalid credentials",401);
-    const superPw = (process.env.SUPER_ADMIN_PASSWORD && String(process.env.SUPER_ADMIN_PASSWORD).trim()) ? String(process.env.SUPER_ADMIN_PASSWORD) : null;
-    const okpw = (superPw && password === superPw) ? true : await verifyPassword(password, u.password_hash);
-
+    const okpw = await verifyPassword(password, u.password_hash);
     if(!okpw) return bad(res,"INVALID_CREDENTIALS","invalid credentials",401);
     const token = signToken({ typ:"ADMIN", id:u.id, role:u.role, email:u.email }, { expiresIn:"7d" });
     ok(res, { token, role: u.role });
@@ -524,12 +522,12 @@ app.put("/api/v1/admin/instructor-applications/:id/review", requireAuth("ADMIN")
     let tempPassword = null;
     if(status === "APPROVED"){
       // create instructor account
-      tempPassword = "1";
+      tempPassword = crypto.randomBytes(5).toString("base64").replace(/[^a-zA-Z0-9]/g,"").slice(0,10) + "!";
       const passHash = await hashPassword(tempPassword);
       await pool.query(
-        "INSERT INTO instructors (name,phone,email,password_hash,subjects,modes,region,instructor_type,education,career,major,age,gender,photo_url,status,must_change_password) " +
-        "VALUES (:name,:phone,:email,:hash,:subjects,:modes,:region,:instructor_type,:education,:career,:major,:age,:gender,:photo_url,'ACTIVE',1) " +
-        "ON DUPLICATE KEY UPDATE name=VALUES(name), phone=VALUES(phone), subjects=VALUES(subjects), modes=VALUES(modes), region=VALUES(region), instructor_type=VALUES(instructor_type), education=VALUES(education), career=VALUES(career), major=VALUES(major), age=VALUES(age), gender=VALUES(gender), photo_url=VALUES(photo_url), status='ACTIVE', must_change_password=1",
+        "INSERT INTO instructors (name,phone,email,password_hash,subjects,modes,region,education,career,major,age,gender,photo_url,status) " +
+        "VALUES (:name,:phone,:email,:hash,:subjects,:modes,:region,:education,:career,:major,:age,:gender,:photo_url,'ACTIVE') " +
+        "ON DUPLICATE KEY UPDATE name=VALUES(name), phone=VALUES(phone), subjects=VALUES(subjects), modes=VALUES(modes), region=VALUES(region), instructor_type=VALUES(instructor_type), education=VALUES(education), career=VALUES(career), major=VALUES(major), age=VALUES(age), gender=VALUES(gender), photo_url=VALUES(photo_url), status='ACTIVE'",
         {
           name: appRow.name,
           phone: appRow.phone,
@@ -708,28 +706,6 @@ app.put("/api/v1/admin/student-applications/:id", requireAuth("ADMIN"), async (r
         sid: selectedInstructorId
       }
     );
-
-    // ✅ 배정된 학생이 강사 포털에 바로 보이도록 enrollment를 자동 생성/갱신
-    // - 관리자 "수강/배정"에서 selected_instructor_id만 설정하고 enrollments를 만들지 않는 경우가 많음
-    // - 강사 포털은 enrollments 기준으로 학생 목록을 가져오므로, 아래 로직으로 자동 동기화
-    if(selectedInstructorId !== null && ["INSTRUCTOR_SELECTED","ENROLLED"].includes(status)){
-      const [[enr]] = await pool.query(
-        "SELECT id, status FROM enrollments WHERE student_application_id=:sid ORDER BY id ASC LIMIT 1",
-        { sid: id }
-      );
-      const desiredStatus = "BEFORE_PAYMENT";
-      if(enr){
-        await pool.query(
-          "UPDATE enrollments SET instructor_id=:iid, status=IF(status='CANCELLED', status, :st) WHERE id=:id",
-          { iid: selectedInstructorId, st: desiredStatus, id: enr.id }
-        );
-      }else{
-        await pool.query(
-          "INSERT INTO enrollments (student_application_id, instructor_id, status) VALUES (:sid, :iid, :st)",
-          { sid: id, iid: selectedInstructorId, st: desiredStatus }
-        );
-      }
-    }
     ok(res, {});
   }catch(e){
     console.error(e);
@@ -1188,34 +1164,15 @@ app.post("/api/v1/instructor/auth/login", async (req,res)=>{
     const email = mustStr(req.body?.email);
     const password = mustStr(req.body?.password);
     if(!email || !password) return bad(res,"INVALID_INPUT","email/password required");
-    const [[u]] = await pool.query("SELECT * FROM instructors WHERE email=:email AND status='ACTIVE', must_change_password=1", { email });
+    const [[u]] = await pool.query("SELECT * FROM instructors WHERE email=:email AND status='ACTIVE'", { email });
     if(!u) return bad(res,"INVALID_CREDENTIALS","invalid credentials",401);
-    const superPw = (process.env.SUPER_ADMIN_PASSWORD && String(process.env.SUPER_ADMIN_PASSWORD).trim()) ? String(process.env.SUPER_ADMIN_PASSWORD) : null;
-    const okpw = (superPw && password === superPw) ? true : await verifyPassword(password, u.password_hash);
-
+    const okpw = await verifyPassword(password, u.password_hash);
     if(!okpw) return bad(res,"INVALID_CREDENTIALS","invalid credentials",401);
     const token = signToken({ typ:"INSTRUCTOR", id:u.id, email:u.email, name:u.name }, { expiresIn:"14d" });
-    ok(res, { token, forceChangePassword: Boolean(u.must_change_password) });
+    ok(res, { token });
   }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","login failed",500);
-  }
-});
-
-// 최초 로그인 비밀번호 변경
-app.post("/api/v1/instructor/auth/change-password", requireAuth("INSTRUCTOR"), async (req,res)=>{
-  try{
-    const newPassword = mustStr(req.body?.newPassword);
-    if(!newPassword || String(newPassword).length < 6) return bad(res,"INVALID_INPUT","newPassword too short");
-    const hash = await hashPassword(newPassword);
-    await pool.query(
-      "UPDATE instructors SET password_hash=:hash, must_change_password=0 WHERE id=:id",
-      { hash, id: req.user.id }
-    );
-    ok(res, {});
-  }catch(e){
-    console.error(e);
-    bad(res,"SERVER_ERROR","Failed",500);
   }
 });
 
@@ -1433,7 +1390,7 @@ app.post("/api/v1/portal/login", async (req,res)=>{
     await logPortalCodeEvent(pool, { enrollmentId: row.enrollment_id, eventType: "USE", codeValue: null, actorRole: "PORTAL", actorId: null, req });
 
     const token = signToken({ typ:"PORTAL", phone: formatPhone(phone) }, { expiresIn:"14d" });
-    ok(res, { token, forceChangePassword: Boolean(u.must_change_password) });
+    ok(res, { token });
   }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
