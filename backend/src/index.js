@@ -36,7 +36,10 @@ app.use(cors({
   credentials: false
 }));
 
-app.use(express.json({ limit: "1mb" }));
+// Some browsers/clients may send JSON with a non-standard Content-Type (e.g. text/plain)
+// if headers are accidentally dropped/overwritten on the frontend.
+// Accept both application/json and text/plain to make admin saves resilient.
+app.use(express.json({ limit: "1mb", type: ["application/json", "text/plain"] }));
 
 // Uploads
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), "uploads");
