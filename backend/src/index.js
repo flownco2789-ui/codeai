@@ -174,7 +174,7 @@ app.get("/api/v1/public/instructors", async (req,res)=>{
     const instructorType = (instructorTypeRaw && instructorTypeRaw.trim()) ? instructorTypeRaw.trim() : null;
 const featured = mustStr(req.query?.featured) || null;
 
-    let sql = "SELECT id,name,subjects,modes,region,instructor_type,is_featured,education,career,major,age,gender,photo_url FROM instructors WHERE status='ACTIVE', must_change_password=1";
+    let sql = "SELECT id,name,subjects,modes,region,instructor_type,is_featured,education,career,major,age,gender,photo_url FROM instructors WHERE status='ACTIVE' AND must_change_password=1";
     const params = {};
     if(region){
       sql += " AND (region IS NULL OR region='' OR region LIKE :regionLike)";
@@ -225,7 +225,7 @@ app.get("/api/v1/public/featured-instructors", async (req,res)=>{
   try{
     const [rows] = await pool.query(
       "SELECT id,name,subjects,modes,region,instructor_type,is_featured,education,career,major,age,gender,photo_url " +
-      "FROM instructors WHERE status='ACTIVE', must_change_password=1 AND is_featured=1 ORDER BY id DESC LIMIT 20"
+      "FROM instructors WHERE status='ACTIVE' AND must_change_password=1 AND is_featured=1 ORDER BY id DESC LIMIT 20"
     );
     ok(res, { instructors: rows.map(r=>({
       id:r.id, name:r.name,
@@ -244,7 +244,7 @@ app.get("/api/v1/public/featured-instructors", async (req,res)=>{
 // 통계(총 강사 수 / 총 수강생 수)
 app.get("/api/v1/public/stats", async (req,res)=>{
   try{
-    const [[a]] = await pool.query("SELECT COUNT(*) AS cnt FROM instructors WHERE status='ACTIVE', must_change_password=1");
+    const [[a]] = await pool.query("SELECT COUNT(*) AS cnt FROM instructors WHERE status='ACTIVE' AND must_change_password=1");
     const [[b]] = await pool.query("SELECT COUNT(DISTINCT phone) AS cnt FROM student_applications");
     ok(res, { total_instructors: Number(a.cnt||0), total_students: Number(b.cnt||0) });
   }catch(e){
@@ -265,7 +265,7 @@ app.post("/api/v1/public/student-applications/:id/select-instructor", async (req
     const [[sa]] = await pool.query("SELECT * FROM student_applications WHERE id=:id", { id: appId });
     if(!sa) return bad(res,"NOT_FOUND","student application not found",404);
 
-    const [[inst]] = await pool.query("SELECT id,name,phone,email,region FROM instructors WHERE id=:id AND status='ACTIVE', must_change_password=1", { id: instructorId });
+    const [[inst]] = await pool.query("SELECT id,name,phone,email,region FROM instructors WHERE id=:id AND status='ACTIVE' AND must_change_password=1", { id: instructorId });
     if(!inst) return bad(res,"NOT_FOUND","instructor not found",404);
 
     await pool.query(
@@ -1188,7 +1188,7 @@ app.post("/api/v1/instructor/auth/login", async (req,res)=>{
     const email = mustStr(req.body?.email);
     const password = mustStr(req.body?.password);
     if(!email || !password) return bad(res,"INVALID_INPUT","email/password required");
-    const [[u]] = await pool.query("SELECT * FROM instructors WHERE email=:email AND status='ACTIVE', must_change_password=1", { email });
+    const [[u]] = await pool.query("SELECT * FROM instructors WHERE email=:email AND status='ACTIVE' AND must_change_password=1", { email });
     if(!u) return bad(res,"INVALID_CREDENTIALS","invalid credentials",401);
     const superPw = (process.env.SUPER_ADMIN_PASSWORD && String(process.env.SUPER_ADMIN_PASSWORD).trim()) ? String(process.env.SUPER_ADMIN_PASSWORD) : null;
     const okpw = (superPw && password === superPw) ? true : await verifyPassword(password, u.password_hash);
