@@ -456,7 +456,7 @@ app.get("/api/v1/admin/instructor-applications", requireAuth("ADMIN"), async (re
     sql += ` ORDER BY ${sortBy} ${sortDir}, id DESC LIMIT ${limit}`;
 
     const [rows] = await pool.query(sql, params);
-    const mapped = rows.map(r=>({
+    ok(res, { list: rows.map(r=>({
       id:r.id, name:r.name, phone:r.phone, email:r.email,
       subjects: jsonStr(r.subjects), modes: jsonStr(r.modes), region:r.region,
       instructor_type: r.instructor_type,
@@ -464,9 +464,8 @@ app.get("/api/v1/admin/instructor-applications", requireAuth("ADMIN"), async (re
       photo_url:r.photo_url, status:r.status, review_note:r.review_note,
       created_at:r.created_at, reviewed_at:r.reviewed_at,
       status_changed_at: r.status_changed_at || r.reviewed_at || r.created_at
-    }));
-    ok(res, { list: mapped, enrollments: mapped });
-}catch(e){
+    }))});
+  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
