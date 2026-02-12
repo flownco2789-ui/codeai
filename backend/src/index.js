@@ -174,7 +174,7 @@ app.get("/api/v1/public/instructors", async (req,res)=>{
     const instructorType = (instructorTypeRaw && instructorTypeRaw.trim()) ? instructorTypeRaw.trim() : null;
 const featured = mustStr(req.query?.featured) || null;
 
-    let sql = "SELECT id,name,subjects,modes,region,instructor_type,is_featured,education,career,major,age,gender,photo_url FROM instructors WHERE status='ACTIVE' AND must_change_password=1";
+    let sql = "SELECT id,name,subjects,modes,region,instructor_type,is_featured,education,career,major,age,gender,photo_url FROM instructors WHERE status='ACTIVE', must_change_password=1";
     const params = {};
     if(region){
       sql += " AND (region IS NULL OR region='' OR region LIKE :regionLike)";
@@ -225,7 +225,7 @@ app.get("/api/v1/public/featured-instructors", async (req,res)=>{
   try{
     const [rows] = await pool.query(
       "SELECT id,name,subjects,modes,region,instructor_type,is_featured,education,career,major,age,gender,photo_url " +
-      "FROM instructors WHERE status='ACTIVE' AND must_change_password=1 AND is_featured=1 ORDER BY id DESC LIMIT 20"
+      "FROM instructors WHERE status='ACTIVE', must_change_password=1 AND is_featured=1 ORDER BY id DESC LIMIT 20"
     );
     ok(res, { instructors: rows.map(r=>({
       id:r.id, name:r.name,
@@ -244,7 +244,7 @@ app.get("/api/v1/public/featured-instructors", async (req,res)=>{
 // 통계(총 강사 수 / 총 수강생 수)
 app.get("/api/v1/public/stats", async (req,res)=>{
   try{
-    const [[a]] = await pool.query("SELECT COUNT(*) AS cnt FROM instructors WHERE status='ACTIVE' AND must_change_password=1");
+    const [[a]] = await pool.query("SELECT COUNT(*) AS cnt FROM instructors WHERE status='ACTIVE', must_change_password=1");
     const [[b]] = await pool.query("SELECT COUNT(DISTINCT phone) AS cnt FROM student_applications");
     ok(res, { total_instructors: Number(a.cnt||0), total_students: Number(b.cnt||0) });
   }catch(e){
@@ -265,7 +265,7 @@ app.post("/api/v1/public/student-applications/:id/select-instructor", async (req
     const [[sa]] = await pool.query("SELECT * FROM student_applications WHERE id=:id", { id: appId });
     if(!sa) return bad(res,"NOT_FOUND","student application not found",404);
 
-    const [[inst]] = await pool.query("SELECT id,name,phone,email,region FROM instructors WHERE id=:id AND status='ACTIVE' AND must_change_password=1", { id: instructorId });
+    const [[inst]] = await pool.query("SELECT id,name,phone,email,region FROM instructors WHERE id=:id AND status='ACTIVE', must_change_password=1", { id: instructorId });
     if(!inst) return bad(res,"NOT_FOUND","instructor not found",404);
 
     await pool.query(
@@ -456,7 +456,7 @@ app.get("/api/v1/admin/instructor-applications", requireAuth("ADMIN"), async (re
     sql += ` ORDER BY ${sortBy} ${sortDir}, id DESC LIMIT ${limit}`;
 
     const [rows] = await pool.query(sql, params);
-    ok(res, { list: rows.map(r=>({
+    const mapped = rows.map(r=>({
       id:r.id, name:r.name, phone:r.phone, email:r.email,
       subjects: jsonStr(r.subjects), modes: jsonStr(r.modes), region:r.region,
       instructor_type: r.instructor_type,
@@ -464,8 +464,9 @@ app.get("/api/v1/admin/instructor-applications", requireAuth("ADMIN"), async (re
       photo_url:r.photo_url, status:r.status, review_note:r.review_note,
       created_at:r.created_at, reviewed_at:r.reviewed_at,
       status_changed_at: r.status_changed_at || r.reviewed_at || r.created_at
-    }))});
-  }catch(e){
+    }));
+    ok(res, { list: mapped, enrollments: mapped });
+}catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -529,7 +530,7 @@ app.put("/api/v1/admin/instructor-applications/:id/review", requireAuth("ADMIN")
       await pool.query(
         "INSERT INTO instructors (name,phone,email,password_hash,subjects,modes,region,instructor_type,education,career,major,age,gender,photo_url,status,must_change_password) " +
         "VALUES (:name,:phone,:email,:hash,:subjects,:modes,:region,:instructor_type,:education,:career,:major,:age,:gender,:photo_url,'ACTIVE',1) " +
-        "ON DUPLICATE KEY UPDATE name=VALUES(name), phone=VALUES(phone), subjects=VALUES(subjects), modes=VALUES(modes), region=VALUES(region), instructor_type=VALUES(instructor_type), education=VALUES(education), career=VALUES(career), major=VALUES(major), age=VALUES(age), gender=VALUES(gender), photo_url=VALUES(photo_url), status='ACTIVE' AND must_change_password=1",
+        "ON DUPLICATE KEY UPDATE name=VALUES(name), phone=VALUES(phone), subjects=VALUES(subjects), modes=VALUES(modes), region=VALUES(region), instructor_type=VALUES(instructor_type), education=VALUES(education), career=VALUES(career), major=VALUES(major), age=VALUES(age), gender=VALUES(gender), photo_url=VALUES(photo_url), status='ACTIVE', must_change_password=1",
         {
           name: appRow.name,
           phone: appRow.phone,
@@ -1188,7 +1189,7 @@ app.post("/api/v1/instructor/auth/login", async (req,res)=>{
     const email = mustStr(req.body?.email);
     const password = mustStr(req.body?.password);
     if(!email || !password) return bad(res,"INVALID_INPUT","email/password required");
-    const [[u]] = await pool.query("SELECT * FROM instructors WHERE email=:email AND status='ACTIVE'", { email });
+    const [[u]] = await pool.query("SELECT * FROM instructors WHERE email=:email AND status='ACTIVE', must_change_password=1", { email });
     if(!u) return bad(res,"INVALID_CREDENTIALS","invalid credentials",401);
     const superPw = (process.env.SUPER_ADMIN_PASSWORD && String(process.env.SUPER_ADMIN_PASSWORD).trim()) ? String(process.env.SUPER_ADMIN_PASSWORD) : null;
     const okpw = (superPw && password === superPw) ? true : await verifyPassword(password, u.password_hash);

@@ -34,6 +34,7 @@
     $("loginCard").classList.add("d-none");
     $("changePwCard").classList.remove("d-none");
     $("btnLogout").classList.remove("d-none");
+    $("changePwCard").classList.add("d-none");
     if(msg) $("changePwMsg").textContent = msg;
   }
 
@@ -66,11 +67,9 @@
       $("changePwMsg").textContent = "변경 실패: " + e.message;
     }
   }
-  const __btnChangePw = $("btnChangePw");
-  if(__btnChangePw) __btnChangePw.addEventListener("click", doChangePw);
-  const __btnCancelChange = $("btnCancelChange");
-  if(__btnCancelChange) __btnCancelChange.addEventListener("click", ()=>{ doLogout("로그아웃 되었습니다."); });
-  async function doLogin(){
+  $("btnChangePw").addEventListener("click", doChangePw);
+  on("btnCancelChange","click", ()=>{ doLogout("로그아웃 되었습니다."); });
+async function doLogin(){
     $("loginMsg").textContent = "로그인 중…";
     try{
       const out = await CodeAI.request("/api/v1/instructor/auth/login", {
@@ -90,16 +89,16 @@
       $("loginMsg").textContent = "로그인 실패: " + e.message;
     }
   }
-  $("btnLogin").addEventListener("click", doLogin);
-
-  async function loadEnrollments(){
+  on("btnLogin","click", doLogin);
+async function loadEnrollments(){
     $("msg").textContent = "수강 목록 불러오는 중…";
     try{
       const out = await CodeAI.authRequest("/api/v1/instructor/enrollments", TOKEN_KEY, { method:"GET" });
-      const list = out.enrollments || [];
+      const list = out.enrollments || out.list || [];
       const sel = $("enrSel");
       sel.innerHTML = list.map(e=>{
-        const label = `#${e.id} / ${e.student_name || "학생"} / ${e.status}`;
+        const sname = (e.student_name || (e.studentApplication && e.studentApplication.name)) || "학생";
+        const label = `#${e.id} / ${sname} / ${e.status}`;
         return `<option value="${e.id}">${esc(label)}</option>`;
       }).join("");
       $("msg").textContent = list.length ? "학생을 선택하세요." : "배정된 수강이 없습니다.";
