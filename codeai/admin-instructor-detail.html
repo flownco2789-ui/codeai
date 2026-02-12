@@ -153,10 +153,14 @@
 
           <div class="mt-3">
             <label class="form-label mb-1">subjects (JSON 배열 또는 콤마 구분)</label>
+            <div class="small text-muted mb-1">입력 예: <span class="mono">C, Web</span> 또는 <span class="mono">[\"C\",\"Web\"]</span></div>
+            <div id="subjectsQuick" class="d-flex flex-wrap gap-1 mb-1"></div>
             <textarea id="subjects" class="form-control form-control-sm" rows="3" placeholder='["Python","Scratch"] 또는 Python, Scratch'></textarea>
           </div>
           <div class="mt-3">
             <label class="form-label mb-1">modes (JSON 배열 또는 콤마 구분)</label>
+            <div class="small text-muted mb-1">권장 코드: <span class="mono">ZOOM</span>, <span class="mono">OFFLINE_1_1</span>, <span class="mono">OFFLINE_GROUP</span></div>
+            <div id="modesQuick" class="d-flex flex-wrap gap-1 mb-1"></div>
             <textarea id="modes" class="form-control form-control-sm" rows="3" placeholder='["ZOOM","OFFLINE_1_1"]'></textarea>
           </div>
           <div class="mt-3">
@@ -174,6 +178,13 @@
   const $ = (id)=>document.getElementById(id);
   const TOKEN_KEY = "codeai_admin_token";
   const esc = (s)=>String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+
+  const SUBJECT_PRESETS = ["Scratch","Python","C","C++","Java","JavaScript","Web","App","AI","Arduino","Minecraft","Roblox"];
+  const MODE_PRESETS = [
+    { value:"ZOOM", label:"줌(ZOOM)" },
+    { value:"OFFLINE_1_1", label:"오프라인 1:1" },
+    { value:"OFFLINE_GROUP", label:"오프라인 그룹" }
+  ];
 
   function showLogin(msg){
     $("loginCard").classList.remove("d-none");
@@ -218,6 +229,8 @@
       showApp();
       $("loginMsg").textContent = "";
       await load();
+      renderQuickButtons("subjectsQuick", "subjects", SUBJECT_PRESETS);
+      renderQuickButtons("modesQuick", "modes", MODE_PRESETS);
     }catch(e){
       $("loginMsg").textContent = "로그인 실패: " + (e.message || "아이디/비밀번호를 확인해주세요.");
     }
@@ -253,6 +266,55 @@
       .split(/[,\n]/g)
       .map(s=>s.trim())
       .filter(Boolean);
+  }
+
+  // DB 저장값(JSON 문자열/배열)을 관리자가 보기 쉬운 콤마 문자열로 변환
+  function listToInput(v){
+    if(v===null||v===undefined) return "";
+    try{
+      const obj = (typeof v === "string") ? JSON.parse(v) : v;
+      if(Array.isArray(obj)) return obj.map(x=>String(x).trim()).filter(Boolean).join(", ");
+    }catch{}
+    return String(v);
+  }
+
+  function renderQuickButtons(containerId, textareaId, items){
+    const box = $(containerId);
+    const ta = $(textareaId);
+    if(!box || !ta) return;
+
+    const normalized = items.map(it=>{
+      if(typeof it === "string") return { value: it, label: it };
+      return { value: it.value, label: it.label };
+    });
+
+    box.innerHTML = normalized.map(it=>
+      `<button type="button" class="btn btn-sm btn-outline-secondary" data-val="${esc(it.value)}">${esc(it.label)}</button>`
+    ).join("");
+
+    function sync(){
+      const cur = new Set(parseList(ta.value).map(x=>String(x)));
+      box.querySelectorAll("button[data-val]").forEach(btn=>{
+        const v = btn.getAttribute("data-val");
+        const on = cur.has(v);
+        btn.classList.toggle("btn-secondary", on);
+        btn.classList.toggle("btn-outline-secondary", !on);
+      });
+    }
+
+    box.addEventListener("click", (e)=>{
+      const btn = e.target.closest("button[data-val]");
+      if(!btn) return;
+      const v = btn.getAttribute("data-val");
+      const arr = parseList(ta.value);
+      const set = new Set(arr.map(x=>String(x)));
+      if(set.has(v)) set.delete(v); else set.add(v);
+      ta.value = Array.from(set).join(", ");
+      sync();
+    });
+
+    ta.addEventListener("input", sync);
+    sync();
   }
 
   function bindPhotoPreview(){
@@ -297,13 +359,18 @@
     setVal("major", data?.major);
     setVal("education", data?.education);
     setVal("career", data?.career);
-    setVal("career_detail", data?.career);
-    setVal("subjects", prettyJSON(data?.subjects));
-    setVal("modes", prettyJSON(data?.modes));
+    // DB에 career_detail 컬럼이 별도로 없을 수 있어 fallback 처리
+    setVal("career_detail", data?.career_detail || data?.career);
+    setVal("subjects", listToInput(data?.subjects));
+    setVal("modes", listToInput(data?.modes));
     setVal("photo_url", data?.photo_url || "");
     setVal("status", data?.status || "ACTIVE");
     setChecked("is_featured", data?.is_featured);
     setVal("admin_note", data?.admin_note);
+
+    // quick buttons sync
+    $("subjects")?.dispatchEvent(new Event("input"));
+    $("modes")?.dispatchEvent(new Event("input"));
 
     // preview
     const p = (data?.photo_url || "").trim();
@@ -362,7 +429,12 @@
   (async ()=>{
     if(localStorage.getItem(TOKEN_KEY)) {
       showApp();
-      try{ bindPhotoPreview(); await load(); }catch(e){ /* handled */ }
+      try{
+        bindPhotoPreview();
+        await load();
+        renderQuickButtons("subjectsQuick", "subjects", SUBJECT_PRESETS);
+        renderQuickButtons("modesQuick", "modes", MODE_PRESETS);
+      }catch(e){ /* handled */ }
     } else {
       showLogin();
     }

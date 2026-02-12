@@ -14,9 +14,13 @@
       url = API + (p.startsWith("/") ? p : ("/" + p));
     }
 
-    const res = await fetch(url, Object.assign({
-      headers: Object.assign({ "Content-Type":"application/json" }, (opts && opts.headers) || {})
-    }, opts || {}));
+    // IMPORTANT:
+    // Object.assign({headers: merged}, opts) 형태로 합치면 opts.headers가 merged를 덮어써서
+    // Authorization만 남고 Content-Type이 사라지는 버그가 생깁니다.
+    // (express.json()이 body를 파싱하지 못해 req.body가 비어버림)
+    const finalHeaders = Object.assign({ "Content-Type":"application/json" }, (opts && opts.headers) || {});
+    const finalOpts = Object.assign({}, (opts || {}), { headers: finalHeaders });
+    const res = await fetch(url, finalOpts);
     const data = await res.json().catch(()=>null);
     if(!res.ok){
       const msg = data && (data.message || data.code) ? (data.message || data.code) : ("HTTP_" + res.status);
