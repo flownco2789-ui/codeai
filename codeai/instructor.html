@@ -626,10 +626,9 @@ paint();
     }
   })();
 })();
-</script>
-</body>
-</html>
 
+
+// ---- moved back inside script (was appended after </html>) ----
 function renderComparison(sortedAll){
   const n = sortedAll.length;
   const slice12 = n>12 ? sortedAll.slice(n-12) : sortedAll.slice();
@@ -745,5 +744,7 @@ function renderComparison(sortedAll){
     </div>
   `;
 }
-
+</script>
+</body>
+</html>
 
