@@ -1,5 +1,8 @@
 (function(){
-  const TOKEN_KEY = "codeai_instructor_token";
+  
+  function $(id){ return document.getElementById(id); }
+  function on(id, ev, fn){ const el=$(id); if(el) el.addEventListener(ev, fn); }
+const TOKEN_KEY = "codeai_instructor_token";
   const $ = (id)=>document.getElementById(id);
   const esc = (s)=>String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
 
