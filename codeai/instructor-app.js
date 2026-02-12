@@ -1,5 +1,11 @@
 (function(){
-  const TOKEN_KEY = "codeai_instructor_token";
+  
+  // Safe DOM event binder (prevents null/addEventListener crashes)
+  function on(id, ev, fn){
+    var el = document.getElementById(id);
+    if (el) el.addEventListener(ev, fn);
+  }
+const TOKEN_KEY = "codeai_instructor_token";
   const $ = (id)=>document.getElementById(id);
   const esc = (s)=>String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
 
@@ -7,6 +13,7 @@
     $("app").classList.add("d-none");
     $("loginCard").classList.remove("d-none");
     $("btnLogout").classList.add("d-none");
+    $("changePwCard").classList.add("d-none");
     if(msg) $("loginMsg").textContent = msg;
   }
 
@@ -66,8 +73,8 @@
       $("changePwMsg").textContent = "변경 실패: " + e.message;
     }
   }
-  on("btnChangePw","click", doChangePw);
-  on("btnCancelChange","click", ()=>{ doLogout("로그아웃 되었습니다."); });
+  $("btnChangePw").addEventListener("click", doChangePw);
+  on("btnCancelChange","click", ()=>{ doLogout("로그아웃 되었습니다."); }); });
   async function doLogin(){
     $("loginMsg").textContent = "로그인 중…";
     try{
