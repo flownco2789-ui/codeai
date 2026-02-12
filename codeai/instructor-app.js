@@ -2,6 +2,8 @@
   const TOKEN_KEY = "codeai_instructor_token";
 let WEEKLY_CACHE = new Map(); // key: YYYY-MM-DD (week_start_date)
   const $ = (id)=>document.getElementById(id);
+  const bind = (id, ev, fn)=>{ const el=$(id); if(el) el.addEventListener(ev, fn); };
+
 
 function fillWeeklyFormFromCache(){
   const d = $("weekStartDate")?.value;
@@ -62,7 +64,7 @@ function fillWeeklyFormFromCache(){
   }
 
 
-  $("btnLogout").addEventListener("click", ()=> doLogout("로그아웃 되었습니다."));
+  bind("btnLogout","click", ()=> doLogout("로그아웃 되었습니다."));
 
 
 
@@ -90,8 +92,8 @@ function fillWeeklyFormFromCache(){
       $("changePwMsg").textContent = "변경 실패: " + e.message;
     }
   }
-  $("btnChangePw").addEventListener("click", doChangePw);
-  $("btnCancelChange").addEventListener("click", ()=>{ doLogout("로그아웃 되었습니다."); });
+  bind("btnChangePw","click", doChangePw);
+  bind("btnCancelChange","click", ()=>{ doLogout("로그아웃 되었습니다."); });
   async function doLogin(){
     $("loginMsg").textContent = "로그인 중…";
     try{
@@ -112,7 +114,7 @@ function fillWeeklyFormFromCache(){
       $("loginMsg").textContent = "로그인 실패: " + e.message;
     }
   }
-  $("btnLogin").addEventListener("click", doLogin);
+  bind("btnLogin","click", doLogin);
 
   async function loadEnrollments(){
     $("msg").textContent = "수강 목록 불러오는 중…";
@@ -553,11 +555,11 @@ paint();
       $("saveMsg").textContent = "오류: " + e.message;
     }
   }
-  $("btnSave").addEventListener("click", saveWeekly);
-  $("btnRefresh").addEventListener("click", async ()=>{ await loadEnrollments(); });
+  bind("btnSave","click", saveWeekly);
+  bind("btnRefresh","click", async ()=>{ await loadEnrollments(); });
 
-  $("enrSel").addEventListener("change", loadWeekly);
-    $("weekStartDate").addEventListener("change", ()=>{ if(WEEKLY_CACHE.size){ fillWeeklyFormFromCache(); } else { loadWeekly(); } });
+  bind("enrSel","change", loadWeekly);
+    bind("weekStartDate","change", ()=>{ if(WEEKLY_CACHE.size){ fillWeeklyFormFromCache(); } else { loadWeekly(); } });
 
   (async ()=>{
     if(localStorage.getItem(TOKEN_KEY)){
