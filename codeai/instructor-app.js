@@ -34,7 +34,6 @@
     $("loginCard").classList.add("d-none");
     $("changePwCard").classList.remove("d-none");
     $("btnLogout").classList.remove("d-none");
-    $("changePwCard").classList.add("d-none");
     if(msg) $("changePwMsg").textContent = msg;
   }
 
@@ -67,8 +66,10 @@
       $("changePwMsg").textContent = "변경 실패: " + e.message;
     }
   }
-  $("btnChangePw").addEventListener("click", doChangePw);
-  $("btnCancelChange").addEventListener("click", ()=>{ doLogout("로그아웃 되었습니다."); });
+  const __btnChangePw = $("btnChangePw");
+  if(__btnChangePw) __btnChangePw.addEventListener("click", doChangePw);
+  const __btnCancelChange = $("btnCancelChange");
+  if(__btnCancelChange) __btnCancelChange.addEventListener("click", ()=>{ doLogout("로그아웃 되었습니다."); });
   async function doLogin(){
     $("loginMsg").textContent = "로그인 중…";
     try{
