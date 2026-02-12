@@ -3,7 +3,18 @@
   const API = (window.CODEAI_API_BASE || "https://api.codeai.co.kr").replace(/\/+$/g,"");
 
   async function request(path, opts){
-    const res = await fetch(API + path, Object.assign({
+    // path가 "/" 없이 넘어오면 (예: "post"), 도메인 뒤에 그대로 붙어서
+    // "https://api.codeai.co.krpost" 같은 잘못된 URL이 됩니다.
+    // 모든 호출을 안전하게 만들기 위해 여기서 보정합니다.
+    let url;
+    if(/^https?:\/\//i.test(String(path)) || String(path).startsWith("//")){
+      url = String(path);
+    }else{
+      const p = String(path || "");
+      url = API + (p.startsWith("/") ? p : ("/" + p));
+    }
+
+    const res = await fetch(url, Object.assign({
       headers: Object.assign({ "Content-Type":"application/json" }, (opts && opts.headers) || {})
     }, opts || {}));
     const data = await res.json().catch(()=>null);
