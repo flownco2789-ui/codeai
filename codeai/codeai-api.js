@@ -35,9 +35,22 @@
 
   async function authRequest(path, tokenKey, opts){
     const token = localStorage.getItem(tokenKey);
-    if(!token) throw new Error("NO_TOKEN");
+    if(!token){
+      const err = new Error("NO_TOKEN");
+      err.status = 401;
+      err.code = "NO_TOKEN";
+      throw err;
+    }
     const headers = Object.assign({}, (opts && opts.headers) || {}, { Authorization: "Bearer " + token });
-    return request(path, Object.assign({}, opts || {}, { headers }));
+    try{
+      return await request(path, Object.assign({}, opts || {}, { headers }));
+    }catch(err){
+      // JWT_SECRET 변경 등으로 토큰이 무효가 되면 401이 나옵니다. 이런 경우 저장된 토큰을 제거합니다.
+      if(err && (err.status === 401 || err.code === "INVALID_TOKEN" || err.code === "NO_TOKEN")){
+        try{ localStorage.removeItem(tokenKey); }catch(_){}
+      }
+      throw err;
+    }
   }
 
   window.CodeAI = { API, request, authRequest };

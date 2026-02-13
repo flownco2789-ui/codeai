@@ -1321,7 +1321,7 @@ app.post("/api/v1/instructor/auth/login", async (req,res)=>{
     if(!okpw) return bad(res,"INVALID_CREDENTIALS","invalid credentials",401);
 
     const token = signToken({ typ:"INSTRUCTOR", id:u.id, email:u.email, name:u.name }, { expiresIn:"14d" });
-    ok(res, { token, forceChangePassword: Boolean(u.must_change_password) });
+    ok(res, { token });
   }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","login failed",500);
@@ -1477,6 +1477,7 @@ app.get("/api/v1/instructor/enrollments", requireInstructor(), async (req, res) 
   }
 });
 
+// WEEKLY_REPORTS_QUERY_V3
 app.get("/api/v1/instructor/enrollments/:enrollmentId/weekly-reports", requireInstructor(), async (req, res) => {
   try {
     const instructorId = req.user.id;
@@ -1716,7 +1717,7 @@ app.post("/api/v1/portal/login", async (req,res)=>{
     await logPortalCodeEvent(pool, { enrollmentId: row.enrollment_id, eventType: "USE", codeValue: null, actorRole: "PORTAL", actorId: null, req });
 
     const token = signToken({ typ:"PORTAL", phone: formatPhone(phone) }, { expiresIn:"14d" });
-    ok(res, { token, forceChangePassword: Boolean(u.must_change_password) });
+    ok(res, { token });
   }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);

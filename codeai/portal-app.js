@@ -2,6 +2,15 @@
   const TOKEN_KEY = "codeai_portal_token";
   const $ = (id)=>document.getElementById(id);
   const esc = (s)=>String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+  function isAuthError(e){
+    return !!(e && (e.status === 401 || e.code === "INVALID_TOKEN" || e.code === "NO_TOKEN"));
+  }
+  function resetToLogin(msg){
+    try{ localStorage.removeItem(TOKEN_KEY); }catch(_){}
+    $("app").classList.add("d-none");
+    $("loginCard").classList.remove("d-none");
+    if(msg) $("loginMsg").textContent = msg;
+  }
 
   async function doLogin(){
     $("loginMsg").textContent = "로그인 중…";
@@ -34,6 +43,10 @@
       $("appMsg").textContent = list.length ? "수강을 선택 후 불러오기를 눌러주세요." : "연결된 수강이 없습니다.";
       if(list.length) await loadWeekly();
     }catch(e){
+      if(isAuthError(e)){
+        resetToLogin("세션이 만료되었습니다. 다시 로그인 해주세요.");
+        return;
+      }
       $("appMsg").textContent = "오류: " + e.message;
     }
   }
@@ -492,6 +505,10 @@ paint();
       })();
       $("appMsg").textContent = "";
     }catch(e){
+      if(isAuthError(e)){
+        resetToLogin("세션이 만료되었습니다. 다시 로그인 해주세요.");
+        return;
+      }
       $("appMsg").textContent = "오류: " + e.message;
     }
   }
