@@ -1485,6 +1485,7 @@ app.get("/api/v1/instructor/enrollments/:enrollmentId/weekly-reports", requireIn
       return res.status(400).json({ ok: false, code: "BAD_REQUEST", message: "invalid enrollmentId" });
     }
 
+    // Ensure this enrollment belongs to the logged-in instructor
     const [[enr]] = await db.query(
       "SELECT id FROM enrollments WHERE id=? AND instructor_id=? LIMIT 1",
       [enrollmentId, instructorId]
@@ -1493,14 +1494,17 @@ app.get("/api/v1/instructor/enrollments/:enrollmentId/weekly-reports", requireIn
       return res.status(404).json({ ok: false, code: "NOT_FOUND", message: "enrollment not found" });
     }
 
+    // weekly_reports schema (see backend/db/schema.sql):
+    // metrics_json, algo_score, project_feedback, instructor_comment, admin_status ...
     const [rows] = await db.query(
-      `SELECT id, enrollment_id, week_start_date,
-              algo_score, homework_done, attendance, mistakes, memo, extra_json,
+      `SELECT id, enrollment_id, instructor_id, week_start_date,
+              metrics_json, algo_score, project_feedback, instructor_comment,
+              admin_status, admin_note, reviewed_at,
               created_at, updated_at
        FROM weekly_reports
-       WHERE enrollment_id=?
+       WHERE enrollment_id=? AND instructor_id=?
        ORDER BY week_start_date ASC`,
-      [enrollmentId]
+      [enrollmentId, instructorId]
     );
 
     return res.json({ ok: true, reports: rows });
@@ -1518,20 +1522,33 @@ app.post("/api/v1/instructor/enrollments/:enrollmentId/weekly-reports", requireI
       return res.status(400).json({ ok: false, code: "BAD_REQUEST", message: "invalid enrollmentId" });
     }
 
-    const {
-      week_start_date,
-      algo_score = null,
-      homework_done = null,
-      attendance = null,
-      mistakes = null,
-      memo = "",
-      extra_json = null
-    } = req.body || {};
+    // Accept both new payload (weekStartDate, metrics) and legacy payload (week_start_date, homework_done, ...)
+    const body = req.body || {};
+    const week_start_date = mustStr(body.week_start_date) || mustStr(body.weekStartDate) || null;
 
     if (!week_start_date) {
       return res.status(400).json({ ok: false, code: "BAD_REQUEST", message: "week_start_date required" });
     }
 
+    const algo_score = (body.algo_score === "" || body.algo_score === undefined) ? null : Number(body.algo_score);
+    const project_feedback = mustStr(body.project_feedback) || "";
+    const instructor_comment = mustStr(body.instructor_comment) || "";
+
+    // metrics_json: prefer body.metrics (object), else build from legacy numeric fields
+    let metrics = null;
+    if (body.metrics && typeof body.metrics === "object") {
+      metrics = body.metrics;
+    } else {
+      // legacy compatibility
+      metrics = {
+        attendance: body.attendance ?? null,
+        homework_done: body.homework_done ?? null,
+        mistakes: body.mistakes ?? null,
+        focus: body.focus ?? null
+      };
+    }
+
+    // Ensure enrollment belongs to instructor
     const [[enr]] = await db.query(
       "SELECT id FROM enrollments WHERE id=? AND instructor_id=? LIMIT 1",
       [enrollmentId, instructorId]
@@ -1540,29 +1557,37 @@ app.post("/api/v1/instructor/enrollments/:enrollmentId/weekly-reports", requireI
       return res.status(404).json({ ok: false, code: "NOT_FOUND", message: "enrollment not found" });
     }
 
-    const [[existing]] = await db.query(
+    // Upsert by (enrollment_id, week_start_date)
+    await db.query(
+      `INSERT INTO weekly_reports
+        (enrollment_id, instructor_id, week_start_date, metrics_json, algo_score, project_feedback, instructor_comment, admin_status, admin_note, reviewed_at)
+       VALUES (?,?,?,?,?,?,?,'PENDING',NULL,NULL)
+       ON DUPLICATE KEY UPDATE
+         instructor_id=VALUES(instructor_id),
+         metrics_json=VALUES(metrics_json),
+         algo_score=VALUES(algo_score),
+         project_feedback=VALUES(project_feedback),
+         instructor_comment=VALUES(instructor_comment),
+         admin_status='PENDING',
+         admin_note=NULL,
+         reviewed_at=NULL`,
+      [
+        enrollmentId,
+        instructorId,
+        week_start_date,
+        metrics ? JSON.stringify(metrics) : null,
+        Number.isFinite(algo_score) ? algo_score : null,
+        project_feedback,
+        instructor_comment
+      ]
+    );
+
+    const [[row]] = await db.query(
       "SELECT id FROM weekly_reports WHERE enrollment_id=? AND week_start_date=? LIMIT 1",
       [enrollmentId, week_start_date]
     );
 
-    if (existing?.id) {
-      await db.query(
-        `UPDATE weekly_reports
-         SET algo_score=?, homework_done=?, attendance=?, mistakes=?, memo=?, extra_json=?
-         WHERE id=?`,
-        [algo_score, homework_done, attendance, mistakes, memo, extra_json, existing.id]
-      );
-      return res.json({ ok: true, upsert: "updated", id: existing.id });
-    }
-
-    const [ins] = await db.query(
-      `INSERT INTO weekly_reports
-       (enrollment_id, week_start_date, algo_score, homework_done, attendance, mistakes, memo, extra_json)
-       VALUES (?,?,?,?,?,?,?,?)`,
-      [enrollmentId, week_start_date, algo_score, homework_done, attendance, mistakes, memo, extra_json]
-    );
-
-    return res.json({ ok: true, upsert: "inserted", id: ins.insertId });
+    return res.json({ ok: true, id: row?.id || null, admin_status: "PENDING" });
   } catch (e) {
     console.error(e);
     return res.status(500).json({ ok: false, code: "SERVER_ERROR", message: "failed to save weekly report" });
