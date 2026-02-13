@@ -57,6 +57,7 @@
         <li class="nav-item"><button class="nav-link" data-tab="reports">기존리포트</button></li>
         <li class="nav-item"><button class="nav-link" data-tab="instApps">강사지원</button></li>
         <li class="nav-item"><button class="nav-link" data-tab="students">학생신청</button></li>
+        <li class="nav-item"><button class="nav-link" data-tab="notifications">알림로그</button></li>
       </ul>
 
       <div id="tab-enrollments" class="tabpane"></div>
@@ -65,6 +66,7 @@
       <div id="tab-reports" class="tabpane d-none"></div>
       <div id="tab-instApps" class="tabpane d-none"></div>
       <div id="tab-students" class="tabpane d-none"></div>
+      <div id="tab-notifications" class="tabpane d-none"></div>
     </div>
   </div>
 
@@ -218,7 +220,7 @@ function downloadCSV(filename, columns, rows){
 
 
   function setActiveTab(name){
-    ["enrollments","instructors","weekly","reports","instApps","students"].forEach(t=>{
+    ["enrollments","instructors","weekly","reports","instApps","students","notifications"].forEach(t=>{
       $("tab-"+t).classList.add("d-none");
       document.querySelector(`button[data-tab="${t}"]`).classList.remove("active");
     });
@@ -236,6 +238,7 @@ function downloadCSV(filename, columns, rows){
       if(name==="reports") loadReports();
       if(name==="instApps") loadInstructorApps();
       if(name==="students") loadStudents();
+      if(name==="notifications") loadNotifications();
     });
   });
 
@@ -1125,6 +1128,161 @@ function downloadCSV(filename, columns, rows){
 
   await run();
 }
+
+
+
+async function loadNotifications(){
+  $("tab-notifications").innerHTML = `
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <div>
+            <h5 class="mb-0">알림 로그</h5>
+            <div class="muted small">notification_logs 테이블 (INTERNAL/SMS/KAKAO/EMAIL) 기록</div>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary smallbtn" id="btnNotiRefresh">새로고침</button>
+          </div>
+        </div>
+        <hr class="my-3"/>
+        <div class="row g-2 mb-2">
+          <div class="col-md-3">
+            <input id="notiQ" class="form-control" placeholder="검색(이메일/전화/키워드)" />
+          </div>
+          <div class="col-md-2">
+            <input id="notiEvent" class="form-control" placeholder="event_type (예: INSTRUCTOR_APPLICATION_APPROVED)" />
+          </div>
+          <div class="col-md-2">
+            <select id="notiChannel" class="form-select">
+              <option value="">채널(전체)</option>
+              <option value="INTERNAL">INTERNAL</option>
+              <option value="SMS">SMS</option>
+              <option value="KAKAO">KAKAO</option>
+              <option value="EMAIL">EMAIL</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <select id="notiStatus" class="form-select">
+              <option value="">상태(전체)</option>
+              <option value="QUEUED">QUEUED</option>
+              <option value="SENT">SENT</option>
+              <option value="FAILED">FAILED</option>
+            </select>
+          </div>
+          <div class="col-md-1">
+            <input id="notiLimit" class="form-control" type="number" value="200" min="1" max="1000" />
+          </div>
+          <div class="col-md-2 d-grid">
+            <button class="btn btn-primary" id="btnNotiSearch">조회</button>
+          </div>
+        </div>
+
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+          <div class="muted small" id="notiMsg"></div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary smallbtn" id="btnNotiPrev">이전</button>
+            <button class="btn btn-outline-secondary smallbtn" id="btnNotiNext">다음</button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr class="muted small">
+                <th style="width:90px">ID</th>
+                <th style="width:150px">시간</th>
+                <th style="width:90px">채널</th>
+                <th style="width:260px">event_type</th>
+                <th style="width:140px">대상(전화)</th>
+                <th style="width:220px">payload.email</th>
+                <th style="width:120px">임시비번</th>
+                <th style="width:90px">상태</th>
+                <th>payload</th>
+              </tr>
+            </thead>
+            <tbody id="notiBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+
+  let offset = 0;
+
+  async function run(){
+    $("notiMsg").textContent = "불러오는 중…";
+    const q = ($("notiQ").value || "").trim();
+    const event_type = ($("notiEvent").value || "").trim();
+    const channel = $("notiChannel").value || "";
+    const status = $("notiStatus").value || "";
+    const limit = Math.max(1, Math.min(1000, Number($("notiLimit").value || 200)));
+
+    const qs = new URLSearchParams();
+    if(q) qs.set("q", q);
+    if(event_type) qs.set("event_type", event_type);
+    if(channel) qs.set("channel", channel);
+    if(status) qs.set("status", status);
+    qs.set("limit", String(limit));
+    qs.set("offset", String(offset));
+    qs.set("sortBy", "id");
+    qs.set("sortDir", "DESC");
+
+    try{
+      const out = await CodeAI.authRequest("/api/v1/admin/notification-logs?" + qs.toString(), TOKEN_KEY, { method:"GET" });
+      const list = out.list || [];
+      $("notiMsg").textContent = `표시 ${list.length}건 (offset=${offset}, limit=${out.limit || limit})`;
+
+      $("btnNotiPrev").disabled = (offset <= 0);
+      $("btnNotiNext").disabled = (list.length < limit);
+
+      $("notiBody").innerHTML = list.map(r=>{
+        const p = r.payload || {};
+        const email = p.email || p.user_email || p.instructor_email || "-";
+        const tempPw = p.tempPassword || p.temp_password || p.temporary_password || "";
+        const payloadPretty = esc(JSON.stringify(p, null, 2));
+        return `
+          <tr>
+            <td class="mono">${esc(r.id)}</td>
+            <td class="small">${esc(fmtDT(r.created_at))}</td>
+            <td><span class="badge text-bg-light">${esc(r.channel)}</span></td>
+            <td class="mono small">${esc(r.event_type)}</td>
+            <td class="mono small">
+              ${esc(r.to_phone || "-")}
+              ${r.to_phone ? `<div class="mt-1"><button class="btn btn-sm btn-outline-secondary smallbtn" data-copy="${esc(r.to_phone)}">복사</button></div>` : ""}
+            </td>
+            <td class="small">
+              ${esc(email)}
+              ${email && email!=="-" ? `<div class="mt-1"><button class="btn btn-sm btn-outline-secondary smallbtn" data-copy="${esc(email)}">복사</button></div>` : ""}
+            </td>
+            <td class="mono">
+              ${tempPw ? esc(tempPw) : "-"}
+              ${tempPw ? `<div class="mt-1"><button class="btn btn-sm btn-outline-primary smallbtn" data-copy="${esc(tempPw)}">복사</button></div>` : ""}
+            </td>
+            <td>${esc(r.status)}</td>
+            <td class="small">
+              <details>
+                <summary class="muted">보기</summary>
+                <pre class="mono small mb-0" style="white-space:pre-wrap">${payloadPretty}</pre>
+              </details>
+            </td>
+          </tr>
+        `;
+      }).join("");
+
+    }catch(e){
+      $("notiMsg").textContent = `오류: ${e.message || e}`;
+      $("notiBody").innerHTML = "";
+    }
+  }
+
+  $("btnNotiSearch").onclick = ()=>{ offset = 0; run(); };
+  $("btnNotiRefresh").onclick = ()=>{ run(); };
+  $("btnNotiPrev").onclick = ()=>{ offset = Math.max(0, offset - Number($("notiLimit").value || 200)); run(); };
+  $("btnNotiNext").onclick = ()=>{ offset = offset + Number($("notiLimit").value || 200); run(); };
+
+  await run();
+}
+
 
 // Auto-login if token exists
 

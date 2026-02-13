@@ -157,7 +157,7 @@ function fillWeeklyFormFromCache(){
     $("changePwMsg").textContent = "변경 중…";
     const a = $("newPw").value;
     const b = $("newPw2").value;
-    if(!a || a.length < 4) { $("changePwMsg").textContent = "비밀번호는 4자 이상 입력해주세요."; return; }
+    if(!a || a.length < 6) { $("changePwMsg").textContent = "비밀번호는 6자 이상 입력해주세요."; return; }
     if(a !== b){ $("changePwMsg").textContent = "비밀번호 확인이 일치하지 않습니다."; return; }
     try{
       await CodeAI.authRequest("/api/v1/instructor/auth/change-password", TOKEN_KEY, {

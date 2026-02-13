@@ -484,6 +484,76 @@ app.post("/api/v1/admin/auth/login", async (req,res)=>{
   }
 });
 
+
+app.get("/api/v1/admin/notification-logs", requireAuth("ADMIN"), async (req,res)=>{
+  try{
+    const q = mustStr(req.query?.q) || null;
+    const eventType = mustStr(req.query?.event_type) || null;
+    const status = mustStr(req.query?.status) || null;
+    const channel = mustStr(req.query?.channel) || null;
+    const toPhone = mustStr(req.query?.to_phone) || null;
+
+    const sortByRaw = mustStr(req.query?.sortBy) || null;
+    const sortDirRaw = mustStr(req.query?.sortDir) || null;
+    const limitRaw = Number(req.query?.limit || 200);
+    const offsetRaw = Number(req.query?.offset || 0);
+
+    const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(1000, limitRaw)) : 200;
+    const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.min(100000, offsetRaw)) : 0;
+
+    const allowedSort = { id:"id", created_at:"created_at" };
+    const sortBy = allowedSort[sortByRaw] || "id";
+    const sortDir = (String(sortDirRaw||"").toUpperCase()==="ASC") ? "ASC" : "DESC";
+
+    let sql = "SELECT id, channel, event_type, to_role, to_phone, payload, status, created_at FROM notification_logs WHERE 1=1";
+    const params = {};
+    if(channel && ["SMS","KAKAO","EMAIL","INTERNAL"].includes(channel)){
+      sql += " AND channel=:ch";
+      params.ch = channel;
+    }
+    if(status && ["QUEUED","SENT","FAILED"].includes(status)){
+      sql += " AND status=:st";
+      params.st = status;
+    }
+    if(eventType){
+      sql += " AND event_type=:et";
+      params.et = eventType;
+    }
+    if(toPhone){
+      sql += " AND to_phone LIKE :tp";
+      params.tp = `%${toPhone}%`;
+    }
+    if(q){
+      // payload는 JSON 타입. CAST(payload AS CHAR)로 문자열 검색 가능.
+      sql += " AND (to_phone LIKE :q OR event_type LIKE :q OR CAST(payload AS CHAR) LIKE :q)";
+      params.q = `%${q}%`;
+    }
+    sql += ` ORDER BY ${sortBy} ${sortDir}, id DESC LIMIT ${limit} OFFSET ${offset}`;
+
+    const [rows] = await pool.query(sql, params);
+    const list = rows.map(r=>{
+      let payload = r.payload;
+      try{
+        if(payload && typeof payload === "string") payload = JSON.parse(payload);
+      }catch{ /* ignore */ }
+      return {
+        id: r.id,
+        channel: r.channel,
+        event_type: r.event_type,
+        to_role: r.to_role,
+        to_phone: r.to_phone,
+        payload,
+        status: r.status,
+        created_at: r.created_at
+      };
+    });
+    ok(res, { list, limit, offset });
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
 app.get("/api/v1/admin/instructor-applications", requireAuth("ADMIN"), async (req,res)=>{
   try{
     const search = mustStr(req.query?.search) || null;
@@ -1390,7 +1460,7 @@ app.get("/api/v1/instructor/enrollments", requireInstructor(), async (req, res) 
 
     const [rows] = await db.query(
       `SELECT e.id, e.status, e.start_date, e.end_date, e.created_at,
-              sa.name AS student_name, sa.phone AS student_phone, sa.grade AS student_grade,
+              sa.name AS student_name, sa.phone AS student_phone, sa.target AS student_grade,
               i.name AS instructor_name, i.email AS instructor_email
        FROM enrollments e
        JOIN student_applications sa ON sa.id = e.student_application_id
