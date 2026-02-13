@@ -102,7 +102,6 @@ async function logPortalCodeEvent(pool, { enrollmentId, eventType, codeValue=nul
       "INSERT INTO portal_code_events (enrollment_id,event_type,code_value,actor_role,actor_id,ip,user_agent) VALUES (:eid,:t,:v,:r,:aid,:ip,:ua)",
       { eid: enrollmentId, t: eventType, v: codeValue, r: actorRole, aid: actorId, ip, ua }
     );
-  }catch(e){
     // logging must not break flow
     console.warn("portal_code_events insert failed:", e?.code || e?.message || e);
   }
@@ -158,7 +157,6 @@ app.post("/api/v1/public/student-applications", async (req,res)=>{
     });
 
     ok(res, { studentApplication: { id } });
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed to create student application",500);
   }
@@ -215,7 +213,6 @@ const featured = mustStr(req.query?.featured) || null;
       gender: r.gender,
       photo_url: r.photo_url
     }))});
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed to list instructors",500);
   }
@@ -235,7 +232,6 @@ app.get("/api/v1/public/featured-instructors", async (req,res)=>{
       education:r.education, career:r.career, major:r.major, age:r.age, gender:r.gender,
       photo_url:r.photo_url
     }))});
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -247,7 +243,6 @@ app.get("/api/v1/public/stats", async (req,res)=>{
     const [[a]] = await pool.query("SELECT COUNT(*) AS cnt FROM instructors WHERE status='ACTIVE', must_change_password=1");
     const [[b]] = await pool.query("SELECT COUNT(DISTINCT phone) AS cnt FROM student_applications");
     ok(res, { total_instructors: Number(a.cnt||0), total_students: Number(b.cnt||0) });
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -290,7 +285,6 @@ app.post("/api/v1/public/student-applications/:id/select-instructor", async (req
     });
 
     ok(res, { enrollmentId });
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed to select instructor",500);
   }
@@ -353,7 +347,6 @@ app.post("/api/v1/public/instructor-applications", upload.single("photo"), async
     });
 
     ok(res, { instructorApplication: { id }});
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed to create instructor application",500);
   }
@@ -399,7 +392,6 @@ app.post("/api/v1/applications/enroll", async (req,res)=>{
     });
 
     ok(res, { id });
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed to create application",500);
   }
@@ -424,7 +416,6 @@ app.post("/api/v1/admin/auth/login", async (req,res)=>{
     if(!okpw) return bad(res,"INVALID_CREDENTIALS","invalid credentials",401);
     const token = signToken({ typ:"ADMIN", id:u.id, role:u.role, email:u.email }, { expiresIn:"7d" });
     ok(res, { token, role: u.role });
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","login failed",500);
   }
@@ -465,7 +456,6 @@ app.get("/api/v1/admin/instructor-applications", requireAuth("ADMIN"), async (re
       created_at:r.created_at, reviewed_at:r.reviewed_at,
       status_changed_at: r.status_changed_at || r.reviewed_at || r.created_at
     }))});
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -499,7 +489,6 @@ app.get("/api/v1/admin/instructor-applications/:id", requireAuth("ADMIN"), async
       created_at:r.created_at,
       status_changed_at: r.status_changed_at || r.reviewed_at || r.created_at
     });
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -553,7 +542,6 @@ app.put("/api/v1/admin/instructor-applications/:id/review", requireAuth("ADMIN")
     }
 
     ok(res, { tempPassword });
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -608,7 +596,6 @@ app.get("/api/v1/admin/student-applications", requireAuth("ADMIN"), async (req,r
       status_changed_at: r.status_changed_at || r.updated_at || r.created_at,
       admin_note:r.admin_note
     }))});
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -639,7 +626,6 @@ app.get("/api/v1/admin/student-applications/:id", requireAuth("ADMIN"), async (r
       updated_at: r.updated_at || null,
       status_changed_at: r.status_changed_at || r.updated_at || r.created_at
     });
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -731,7 +717,6 @@ app.put("/api/v1/admin/student-applications/:id", requireAuth("ADMIN"), async (r
       }
     }
     ok(res, {});
-  }catch(e){
     console.error(e);
     if(e?.code === "ER_NO_REFERENCED_ROW_2"){
       return bad(res,"INVALID_FK","selected_instructor_id not found",400);
@@ -776,7 +761,6 @@ app.get("/api/v1/admin/enrollments", requireAuth("ADMIN"), async (req,res)=>{
       is_featured:r.is_featured,
       last_code_issued_at:r.last_code_issued_at
     }))});
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -848,7 +832,6 @@ app.get("/api/v1/admin/instructors", requireAuth("ADMIN"), async (req,res)=>{
       updated_at:r.updated_at,
       status_changed_at: r.status_changed_at || r.updated_at || r.created_at
     }))});
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -885,7 +868,6 @@ app.get("/api/v1/admin/instructors/:id", requireAuth("ADMIN"), async (req,res)=>
       updated_at: r.updated_at,
       status_changed_at: r.status_changed_at || r.updated_at || r.created_at
     });
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -963,7 +945,6 @@ app.put("/api/v1/admin/instructors/:id", requireAuth("ADMIN"), async (req,res)=>
       }
     );
     ok(res, {});
-  }catch(e){
     console.error(e);
     if(e?.code === "ER_DUP_ENTRY"){
       return bad(res,"DUPLICATE","email already exists",400);
@@ -979,7 +960,6 @@ app.put("/api/v1/admin/instructors/:id/feature", requireAuth("ADMIN"), async (re
     if(!id) return bad(res,"INVALID_INPUT","id required");
     await pool.query("UPDATE instructors SET is_featured=:f WHERE id=:id", { id, f:isFeatured });
     ok(res, {});
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -992,7 +972,6 @@ app.post("/api/v1/admin/enrollments/:id/assign-instructor", requireAuth("ADMIN")
     if(!enrollmentId || !instructorId) return bad(res,"INVALID_INPUT","enrollmentId/instructorId required");
     await pool.query("UPDATE enrollments SET instructor_id=:iid WHERE id=:eid", { eid: enrollmentId, iid: instructorId });
     ok(res, {});
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -1024,7 +1003,6 @@ app.post("/api/v1/admin/enrollments/:id/portal-code/reissue", requireAuth("ADMIN
     await logPortalCodeEvent(pool, { enrollmentId, eventType: "ISSUE", codeValue: portalCode, actorRole: "ADMIN", actorId: req.user?.id || null, req });
 
     ok(res, { code: portalCode, expires_at: fmtDateTime(expiresAt) });
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -1040,7 +1018,6 @@ app.get("/api/v1/admin/enrollments/:id/portal-code/logs", requireAuth("ADMIN"), 
       { eid: enrollmentId }
     );
     ok(res, { logs: rows });
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -1054,7 +1031,6 @@ app.put("/api/v1/admin/enrollments/:id/set-period", requireAuth("ADMIN"), async 
     if(!id || !startDate || !endDate) return bad(res,"INVALID_INPUT","start/end required");
     await pool.query("UPDATE enrollments SET start_date=:s, end_date=:e WHERE id=:id", { id, s:startDate, e:endDate });
     ok(res, {});
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -1089,7 +1065,6 @@ app.post("/api/v1/admin/enrollments/:id/mark-paid", requireAuth("ADMIN"), async 
     await notifyPhone(pool, enr.phone, "PORTAL_CODE_ISSUED", { enrollmentId:id, portalCode });
 
     ok(res, { portalCode });
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -1099,7 +1074,6 @@ app.get("/api/v1/admin/reports", requireAuth("ADMIN"), async (req,res)=>{
   try{
     const [rows] = await pool.query("SELECT * FROM reports ORDER BY id DESC LIMIT 200");
     ok(res, { list: rows });
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -1148,7 +1122,6 @@ app.get("/api/v1/admin/weekly-reports", requireAuth("ADMIN"), async (req,res)=>{
     sql += " ORDER BY wr.week_start_date DESC, wr.id DESC LIMIT 500";
     const [rows] = await pool.query(sql, params);
     ok(res, { list: rows });
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -1167,13 +1140,11 @@ app.post("/api/v1/admin/weekly-reports/:id/review", requireAuth("ADMIN"), async 
       { id, st: status, note }
     );
     ok(res, {});
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
 });
 
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -1196,7 +1167,6 @@ app.post("/api/v1/instructor/auth/login", async (req,res)=>{
     if(!okpw) return bad(res,"INVALID_CREDENTIALS","invalid credentials",401);
     const token = signToken({ typ:"INSTRUCTOR", id:u.id, email:u.email, name:u.name }, { expiresIn:"14d" });
     ok(res, { token, forceChangePassword: Boolean(u.must_change_password) });
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","login failed",500);
   }
@@ -1213,7 +1183,6 @@ app.post("/api/v1/instructor/auth/change-password", requireAuth("INSTRUCTOR"), a
       { hash, id: req.user.id }
     );
     ok(res, {});
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -1236,7 +1205,6 @@ app.get("/api/v1/instructor/enrollments", requireAuth("INSTRUCTOR"), async (req,
     );
 
     return res.json({ ok: true, enrollments: rows });
-  } catch (e) {
     console.error(e);
     return res.status(500).json({ ok: false, code: "SERVER_ERROR", message: "failed to load enrollments" });
   }
@@ -1269,7 +1237,6 @@ app.get("/api/v1/instructor/enrollments/:enrollmentId/weekly-reports", requireAu
     );
 
     return res.json({ ok: true, reports: rows });
-  } catch (e) {
     console.error(e);
     return res.status(500).json({ ok: false, code: "SERVER_ERROR", message: "failed to load weekly reports" });
   }
@@ -1328,7 +1295,6 @@ app.post("/api/v1/instructor/enrollments/:enrollmentId/weekly-reports", requireA
     );
 
     return res.json({ ok: true, upsert: "inserted", id: ins.insertId });
-  } catch (e) {
     console.error(e);
     return res.status(500).json({ ok: false, code: "SERVER_ERROR", message: "failed to save weekly report" });
   }
@@ -1349,7 +1315,6 @@ app.post("/api/v1/instructor/enrollments/:enrollmentId/weekly-reports", requireA
       },
       payments: paymentsBy[r.id] || []
     }))});
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -1364,7 +1329,6 @@ app.put("/api/v1/instructor/enrollments/:id/consult-done", requireAuth("INSTRUCT
       { id, iid: instructorId }
     );
     ok(res, {});
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -1404,7 +1368,6 @@ app.post("/api/v1/instructor/enrollments/:id/request-payment", requireAuth("INST
     });
 
     ok(res, { paymentId: r.insertId, paymentUrl: ss.productUrl || null });
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -1443,7 +1406,6 @@ app.post("/api/v1/instructor/reports", requireAuth("INSTRUCTOR"), async (req,res
     await notifyAdminsByRoles(pool, ["SUPER_ADMIN","SUB_ADMIN"], "REPORT_SUBMITTED", { reportId: r.insertId, enrollmentId });
 
     ok(res, { reportId: r.insertId });
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -1474,7 +1436,6 @@ app.post("/api/v1/portal/login", async (req,res)=>{
 
     const token = signToken({ typ:"PORTAL", phone: formatPhone(phone) }, { expiresIn:"14d" });
     ok(res, { token, forceChangePassword: Boolean(u.must_change_password) });
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -1512,13 +1473,11 @@ app.get("/api/v1/portal/enrollments/:id/weekly-reports", requireAuth("PORTAL"), 
       { eid: enrollmentId }
     );
     ok(res, { reports: rows });
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
 });
 
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
@@ -1552,7 +1511,6 @@ app.get("/api/v1/portal/enrollments/:id/reports", requireAuth("PORTAL"), async (
       raw_data: r.raw_data,
       created_at: r.created_at
     }))});
-  }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
