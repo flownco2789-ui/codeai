@@ -10,7 +10,7 @@ import rateLimit from "express-rate-limit";
 import multer from "multer";
 
 import { makePoolFromEnv } from "./db.js";
-import { mustStr, isValidPhone, formatPhone, pickMeta } from "./validators.js";
+import { mustStr, isValidPhone, normalizePhone, formatPhone, pickMeta } from "./validators.js";
 import { hashPassword, verifyPassword, signToken, requireAuth } from "./auth.js";
 import { notifyAdminsByRoles, notifyPhone, logNotification } from "./notify.js";
 import { createSmartStoreProduct } from "./smartstore.js";
@@ -1134,6 +1134,8 @@ app.post("/api/v1/admin/enrollments/:id/portal-code/reissue", requireAuth("ADMIN
     );
     if(!enr) return bad(res,"NOT_FOUND","not found",404);
 
+    const phoneNorm = normalizePhone(enr.phone);
+
     // invalidate old codes
     await pool.query("UPDATE portal_access_codes SET expires_at=NOW() WHERE enrollment_id=:eid AND expires_at > NOW()", { eid: enrollmentId });
 
@@ -1142,7 +1144,7 @@ app.post("/api/v1/admin/enrollments/:id/portal-code/reissue", requireAuth("ADMIN
     const expiresAt = new Date(Date.now() + 1000*60*60*24*120);
     await pool.query(
       "INSERT INTO portal_access_codes (enrollment_id,phone,code_hash,expires_at) VALUES (:eid,:phone,:hash,:exp)",
-      { eid: enrollmentId, phone: enr.phone, hash: codeHash, exp: fmtDateTime(expiresAt) }
+      { eid: enrollmentId, phone: phoneNorm, hash: codeHash, exp: fmtDateTime(expiresAt) }
     );
 
     await logPortalCodeEvent(pool, { enrollmentId, eventType: "ISSUE", codeValue: portalCode, actorRole: "ADMIN", actorId: req.user?.id || null, req });
@@ -1194,6 +1196,8 @@ app.post("/api/v1/admin/enrollments/:id/mark-paid", requireAuth("ADMIN"), async 
     );
     if(!enr) return bad(res,"NOT_FOUND","not found",404);
 
+    const phoneNorm = normalizePhone(enr.phone);
+
     await pool.query("UPDATE enrollments SET status='PAID' WHERE id=:id", { id });
 
     const portalCode = genPortalCode();
@@ -1205,12 +1209,11 @@ app.post("/api/v1/admin/enrollments/:id/mark-paid", requireAuth("ADMIN"), async 
     };
     await pool.query(
       "INSERT INTO portal_access_codes (enrollment_id,phone,code_hash,expires_at) VALUES (:eid,:phone,:hash,:exp)",
-      { eid:id, phone: enr.phone, hash: codeHash, exp: fmt(expiresAt) }
+      { eid:id, phone: phoneNorm, hash: codeHash, exp: fmt(expiresAt) }
     );
     await logPortalCodeEvent(pool, { enrollmentId: id, eventType: "ISSUE", codeValue: portalCode, actorRole: "ADMIN", actorId: req.user?.id || null, req });
 
-
-    await notifyPhone(pool, enr.phone, "PORTAL_CODE_ISSUED", { enrollmentId:id, portalCode });
+    await notifyPhone(pool, phoneNorm, "PORTAL_CODE_ISSUED", { enrollmentId:id, portalCode });
 
     ok(res, { portalCode });
   }catch(e){
@@ -1699,13 +1702,16 @@ app.post("/api/v1/instructor/reports", requireAuth("INSTRUCTOR"), async (req,res
 
 app.post("/api/v1/portal/login", async (req,res)=>{
   try{
-    const phone = mustStr(req.body?.phone);
+    const phoneRaw = mustStr(req.body?.phone);
     const code = mustStr(req.body?.code);
-    if(!phone || !isValidPhone(phone) || !code) return bad(res,"INVALID_INPUT","phone/code required");
+    if(!phoneRaw || !isValidPhone(phoneRaw) || !code) return bad(res,"INVALID_INPUT","phone/code required");
+
+    // Always compare phone numbers in DB as digits only (hyphen/no-hyphen tolerant)
+    const phone = normalizePhone(phoneRaw);
 
     const [[row]] = await pool.query(
-      "SELECT * FROM portal_access_codes WHERE phone=:phone AND expires_at > NOW() ORDER BY id DESC LIMIT 1",
-      { phone: formatPhone(phone) }
+      "SELECT * FROM portal_access_codes WHERE REPLACE(phone,'-','')=:phone AND expires_at > NOW() ORDER BY id DESC LIMIT 1",
+      { phone }
     );
     if(!row) return bad(res,"NO_CODE","no valid code",401);
 
@@ -1716,7 +1722,7 @@ app.post("/api/v1/portal/login", async (req,res)=>{
 
     await logPortalCodeEvent(pool, { enrollmentId: row.enrollment_id, eventType: "USE", codeValue: null, actorRole: "PORTAL", actorId: null, req });
 
-    const token = signToken({ typ:"PORTAL", phone: formatPhone(phone) }, { expiresIn:"14d" });
+    const token = signToken({ typ:"PORTAL", phone }, { expiresIn:"14d" });
     ok(res, { token });
   }catch(e){
     console.error(e);
@@ -1726,26 +1732,31 @@ app.post("/api/v1/portal/login", async (req,res)=>{
 
 app.get("/api/v1/portal/enrollments", requireAuth("PORTAL"), async (req,res)=>{
   try{
-    const phone = req.user.phone;
+    const phone = normalizePhone(req.user?.phone);
     const [rows] = await pool.query(
       "SELECT e.id,e.status,e.start_date,e.end_date,sa.mode,i.name AS instructor_name,i.region AS instructor_region " +
       "FROM enrollments e " +
       "JOIN student_applications sa ON sa.id=e.student_application_id " +
       "JOIN instructors i ON i.id=e.instructor_id " +
-      "WHERE sa.phone=:phone ORDER BY e.id DESC LIMIT 100",
+      "WHERE REPLACE(sa.phone,'-','')=:phone ORDER BY e.id DESC LIMIT 100",
       { phone }
     );
     ok(res, { enrollments: rows });
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
 
 // 학부모 포털: 주간 학습보고서(최근 12주, 승인된 것만)
 app.get("/api/v1/portal/enrollments/:id/weekly-reports", requireAuth("PORTAL"), async (req,res)=>{
   try{
-    const phone = req.user.phone;
+    const phone = normalizePhone(req.user?.phone);
     const enrollmentId = Number(req.params.id);
     if(!enrollmentId) return bad(res,"INVALID_INPUT","id required");
 
     const [[enr]] = await pool.query(
-      "SELECT e.id FROM enrollments e JOIN student_applications sa ON sa.id=e.student_application_id WHERE e.id=:id AND sa.phone=:phone",
+      "SELECT e.id FROM enrollments e JOIN student_applications sa ON sa.id=e.student_application_id WHERE e.id=:id AND REPLACE(sa.phone,'-','')=:phone",
       { id: enrollmentId, phone }
     );
     if(!enr) return bad(res,"FORBIDDEN","not allowed",403);
@@ -1762,20 +1773,14 @@ app.get("/api/v1/portal/enrollments/:id/weekly-reports", requireAuth("PORTAL"), 
   }
 });
 
-  }catch(e){
-    console.error(e);
-    bad(res,"SERVER_ERROR","Failed",500);
-  }
-});
-
 app.get("/api/v1/portal/enrollments/:id/reports", requireAuth("PORTAL"), async (req,res)=>{
   try{
-    const phone = req.user.phone;
+    const phone = normalizePhone(req.user?.phone);
     const eid = Number(req.params.id);
     if(!eid) return bad(res,"INVALID_INPUT","id required");
     // ensure ownership
     const [[own]] = await pool.query(
-      "SELECT e.id FROM enrollments e JOIN student_applications sa ON sa.id=e.student_application_id WHERE e.id=:id AND sa.phone=:phone",
+      "SELECT e.id FROM enrollments e JOIN student_applications sa ON sa.id=e.student_application_id WHERE e.id=:id AND REPLACE(sa.phone,'-','')=:phone",
       { id:eid, phone }
     );
     if(!own) return bad(res,"FORBIDDEN","not yours",403);
