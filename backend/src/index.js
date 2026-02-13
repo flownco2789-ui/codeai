@@ -79,15 +79,13 @@ function jsonStr(v){
   }catch{
     return "[]";
   }
-
-function generateTempPassword12(){
-  // 12자 임시비번: 영문/숫자 기반 + 필수 조합 보정
-  const raw = crypto.randomBytes(18).toString("base64").replace(/[^a-zA-Z0-9]/g,"");
-  const base = (raw + "A1!").slice(0,12);
-  return base;
 }
 
+function generateTempPassword4(){
+  // 4자리 임시비번: 0000~9999 (0으로 시작 가능)
+  return String(crypto.randomInt(0, 10000)).padStart(4, "0");
 }
+
 function parseJsonArray(v){
   try{
     if(Array.isArray(v)) return v;
@@ -580,7 +578,7 @@ app.put("/api/v1/admin/instructor-applications/:id/review", requireAuth("ADMIN")
     let tempPassword = null;
     if(status === "APPROVED"){
       // create instructor account
-      tempPassword = generateTempPassword12();
+      tempPassword = generateTempPassword4();
       const passHash = await hashPassword(tempPassword);
       await pool.query(
         "INSERT INTO instructors (name,phone,email,password_hash,subjects,modes,region,instructor_type,education,career,major,age,gender,photo_url,status,must_change_password) " +
