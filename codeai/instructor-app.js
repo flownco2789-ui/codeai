@@ -5,6 +5,91 @@ let WEEKLY_CACHE = new Map(); // key: YYYY-MM-DD (week_start_date)
   const bind = (id, ev, fn)=>{ const el=$(id); if(el) el.addEventListener(ev, fn); };
 
 
+
+  function isUnauthorizedError(e){
+    const m = String(e && e.message || "");
+    return (e && e.status===401) || ["UNAUTHORIZED","NO_TOKEN","HTTP_401","INVALID_TOKEN"].includes(m) || m.includes("HTTP_401");
+  }
+  function isPwChangeRequired(e){
+    return (e && e.code==="PASSWORD_CHANGE_REQUIRED") || String(e && e.message || "").includes("PASSWORD_CHANGE_REQUIRED") || String(e && e.message || "").includes("비밀번호 변경");
+  }
+
+  async function loadMe(){
+    try{
+      const out = await CodeAI.authRequest("/api/v1/instructor/me", TOKEN_KEY, { method:"GET" });
+      const me = out.me || {};
+      if($("meEmail")) $("meEmail").textContent = me.email ? ("계정: " + me.email) : "";
+      if($("meName")) $("meName").value = me.name || "";
+      if($("mePhone")) $("mePhone").value = me.phone || "";
+      if($("meRegion")) $("meRegion").value = me.region || "";
+      if($("meEducation")) $("meEducation").value = me.education || "";
+      if($("meMajor")) $("meMajor").value = me.major || "";
+      if($("meCareer")) $("meCareer").value = me.career || "";
+      if($("mePhotoUrl")) $("mePhotoUrl").value = me.photo_url || "";
+
+      const subs = Array.isArray(me.subjects) ? me.subjects : [];
+      if($("meSubjects")) $("meSubjects").value = subs.join(", ");
+
+      const modes = new Set(Array.isArray(me.modes) ? me.modes : []);
+      const setCk = (id, v)=>{ const el=$(id); if(el) el.checked = v; };
+      setCk("meModeZOOM", modes.has("ZOOM"));
+      setCk("meModeOFFLINE_1_1", modes.has("OFFLINE_1_1"));
+      setCk("meModeOFFLINE_GROUP", modes.has("OFFLINE_GROUP"));
+
+      if($("meMsg")) $("meMsg").textContent = "";
+    }catch(e){
+      if(isUnauthorizedError(e)){
+        doLogout("세션이 만료되어 로그아웃 되었습니다. 다시 로그인 해주세요.");
+        return;
+      }
+      if(isPwChangeRequired(e)){
+        showChangePw("최초 로그인입니다. 비밀번호를 변경해주세요.");
+        return;
+      }
+      if($("meMsg")) $("meMsg").textContent = "내 정보 불러오기 실패: " + (e.message || e);
+    }
+  }
+
+  async function saveMe(){
+    if($("meMsg")) $("meMsg").textContent = "저장 중…";
+    try{
+      const modes = [];
+      if($("meModeZOOM")?.checked) modes.push("ZOOM");
+      if($("meModeOFFLINE_1_1")?.checked) modes.push("OFFLINE_1_1");
+      if($("meModeOFFLINE_GROUP")?.checked) modes.push("OFFLINE_GROUP");
+
+      const subjects = String($("meSubjects")?.value || "").split(",").map(s=>s.trim()).filter(Boolean);
+
+      await CodeAI.authRequest("/api/v1/instructor/me", TOKEN_KEY, {
+        method:"PATCH",
+        body: JSON.stringify({
+          name: $("meName")?.value?.trim(),
+          phone: $("mePhone")?.value?.trim(),
+          region: $("meRegion")?.value?.trim(),
+          subjects,
+          modes,
+          education: $("meEducation")?.value?.trim(),
+          major: $("meMajor")?.value?.trim(),
+          career: $("meCareer")?.value || "",
+          photo_url: $("mePhotoUrl")?.value?.trim()
+        })
+      });
+      if($("meMsg")) $("meMsg").textContent = "저장 완료";
+      await loadMe();
+    }catch(e){
+      if(isUnauthorizedError(e)){
+        doLogout("세션이 만료되어 로그아웃 되었습니다. 다시 로그인 해주세요.");
+        return;
+      }
+      if(isPwChangeRequired(e)){
+        showChangePw("최초 로그인입니다. 비밀번호를 변경해주세요.");
+        return;
+      }
+      if($("meMsg")) $("meMsg").textContent = "저장 실패: " + (e.message || e);
+    }
+  }
+  bind("btnSaveMe","click", saveMe);
+
 function fillWeeklyFormFromCache(){
   const d = $("weekStartDate")?.value;
   if(!d) return;
@@ -39,6 +124,7 @@ function fillWeeklyFormFromCache(){
   function showApp(){
     $("loginCard").classList.add("d-none");
     $("app").classList.remove("d-none");
+    loadMe();
     $("btnLogout").classList.remove("d-none");
     $("changePwCard").classList.add("d-none");
   }
@@ -59,7 +145,6 @@ function fillWeeklyFormFromCache(){
     $("loginCard").classList.add("d-none");
     $("changePwCard").classList.remove("d-none");
     $("btnLogout").classList.remove("d-none");
-    $("changePwCard").classList.add("d-none");
     if(msg) $("changePwMsg").textContent = msg;
   }
 
@@ -85,7 +170,7 @@ function fillWeeklyFormFromCache(){
       showApp();
       await loadEnrollments();
     }catch(e){
-      if(String(e.message).includes("UNAUTHORIZED") || String(e.message).includes("HTTP_401")){
+      if(isUnauthorizedError(e)){
         doLogout("세션이 만료되어 로그아웃 되었습니다. 다시 로그인 해주세요.");
         return;
       }
@@ -129,8 +214,12 @@ function fillWeeklyFormFromCache(){
       $("msg").textContent = list.length ? "학생을 선택하세요." : "배정된 수강이 없습니다.";
       if(list.length) await loadWeekly();
     }catch(e){
-      if(["UNAUTHORIZED","NO_TOKEN","HTTP_401"].includes(String(e.message))){
+      if(isUnauthorizedError(e)){
         doLogout("세션이 만료되어 로그아웃 되었습니다. 다시 로그인 해주세요.");
+        return;
+      }
+      if(isPwChangeRequired(e)){
+        showChangePw("최초 로그인입니다. 비밀번호를 변경해주세요.");
         return;
       }
       $("msg").textContent = "오류: " + e.message;
@@ -516,7 +605,7 @@ paint();
       }).join("");
       $("msg").textContent = "";
     }catch(e){
-      if(["UNAUTHORIZED","NO_TOKEN","HTTP_401"].includes(String(e.message))){
+      if(isUnauthorizedError(e)){
         doLogout("세션이 만료되어 로그아웃 되었습니다. 다시 로그인 해주세요.");
         return;
       }
@@ -548,7 +637,7 @@ paint();
       $("saveMsg").textContent = "저장 완료 (관리자 검수 대기)";
       await loadWeekly();
     }catch(e){
-      if(["UNAUTHORIZED","NO_TOKEN","HTTP_401"].includes(String(e.message))){
+      if(isUnauthorizedError(e)){
         doLogout("세션이 만료되어 로그아웃 되었습니다. 다시 로그인 해주세요.");
         return;
       }

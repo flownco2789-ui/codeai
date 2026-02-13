@@ -24,7 +24,11 @@
     const data = await res.json().catch(()=>null);
     if(!res.ok){
       const msg = data && (data.message || data.code) ? (data.message || data.code) : ("HTTP_" + res.status);
-      throw new Error(msg);
+      const err = new Error(msg);
+      err.status = res.status;
+      err.code = data && data.code;
+      err.data = data;
+      throw err;
     }
     return data;
   }
