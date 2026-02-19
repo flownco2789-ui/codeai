@@ -3,8 +3,254 @@
 <head> <meta charset="utf-8" /> <meta name="viewport" content="width=device-width, initial-scale=1" /> <title>강사 상세정보</title> <link rel="icon" href="assets/img/favicon.png" /> <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet"> <script src="codeai-config.js?v=20260213a"></script> <script src="codeai-api.js?v=20260213a"></script> <style> body { background:#f7f8fb; } .card { border-radius:16px; } .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; } img.photo { width:120px; height:120px; object-fit:cover; border-radius:16px; border:1px solid #e9ecef; } textarea { resize: vertical; } </style>
 </head>
 <body class="p-3"> <div class="container" style="max-width: 920px;"> <div class="d-flex justify-content-between align-items-center mb-3"> <div class="d-flex gap-2 align-items-center"> <a class="btn btn-sm btn-outline-secondary" href="admin.html">← 관리자 홈</a> </div> <button id="btnLogout" class="btn btn-sm btn-outline-danger">로그아웃</button> </div> <div id="loginCard" class="card p-3 mb-3 d-none"> <div class="row g-2 align-items-end"> <div class="col-md-5"> <label class="form-label mb-1">이메일</label> <input id="email" class="form-control" placeholder="admin@example.com" /> </div> <div class="col-md-5"> <label class="form-label mb-1">비밀번호</label> <input id="password" type="password" class="form-control" placeholder="••••••••" /> </div> <div class="col-md-2 d-grid"> <button id="btnLogin" class="btn btn-primary">로그인</button> </div> </div> <div id="loginMsg" class="small text-danger mt-2"></div> </div> <div id="app" class="card p-3"> <div class="d-flex justify-content-between align-items-center mb-2"> <div> <h5 class="mb-0">강사 상세정보</h5> <div id="msg" class="small text-muted">불러오는 중…</div> </div> <div class="d-flex gap-2"> <button id="btnReload" class="btn btn-sm btn-outline-secondary">새로고침</button> <button id="btnResetPw" class="btn btn-sm btn-outline-danger">비밀번호 리셋</button> <button id="btnSave" class="btn btn-sm btn-primary">저장</button> </div> </div> <div id="saveMsg" class="small mb-2"></div> <div class="row g-3"> <div class="col-md-4"> <img id="photo" class="photo d-none" alt="photo" /> <div class="mt-2"> <label class="form-label mb-1">photo_url</label> <input id="photo_url" class="form-control form-control-sm" placeholder="https://..." /> </div> <div class="form-check mt-3"> <input class="form-check-input" type="checkbox" id="is_featured" /> <label class="form-check-label" for="is_featured">메인 강사(Featured)</label> </div> <div class="mt-3"> <label class="form-label mb-1">상태(status)</label> <select id="status" class="form-select form-select-sm"> <option value="ACTIVE">ACTIVE</option> <option value="SUSPENDED">SUSPENDED</option> </select> </div> <div class="mt-3"> <label class="form-label mb-1">관리자 비고(admin_note)</label> <textarea id="admin_note" class="form-control form-control-sm" rows="6" placeholder="관리자 메모"></textarea> </div> <div class="mt-3 small text-muted"> <div><b>ID</b>: <span id="view_id" class="mono"></span></div> <div><b>created_at</b>: <span id="view_created" class="mono"></span></div> <div><b>updated_at</b>: <span id="view_updated" class="mono"></span></div> <div class="mt-1"><b>password_hash</b> (읽기전용):</div> <div id="view_pass" class="mono" style="font-size:12px; word-break:break-all;"></div> </div> </div> <div class="col-md-8"> <div class="row g-2"> <div class="col-md-6"> <label class="form-label mb-1">이름(name)</label> <input id="name" class="form-control form-control-sm" /> </div> <div class="col-md-6"> <label class="form-label mb-1">전화(phone)</label> <input id="phone" class="form-control form-control-sm" placeholder="01012345678" /> </div> <div class="col-12"> <label class="form-label mb-1">이메일(email)</label> <input id="email2" class="form-control form-control-sm" /> </div> <div class="col-md-6"> <label class="form-label mb-1">지역(region)</label> <input id="region" class="form-control form-control-sm" placeholder="예: 서울/경기" /> </div> <div class="col-md-6"> <label class="form-label mb-1">강사유형(instructor_type)</label> <select id="instructor_type" class="form-select form-select-sm"> <option value="">(NULL)</option> <option value="COLLEGE">COLLEGE</option> <option value="EMPLOYEE">EMPLOYEE</option> <option value="FREELANCER">FREELANCER</option> <option value="FULLTIME_TUTOR">FULLTIME_TUTOR</option> <option value="OTHER">OTHER</option> </select> </div> <div class="col-md-4"> <label class="form-label mb-1">나이(age)</label> <input id="age" type="number" class="form-control form-control-sm" min="0" max="120" /> </div> <div class="col-md-4"> <label class="form-label mb-1">성별(gender)</label> <select id="gender" class="form-select form-select-sm"> <option value="">(NULL)</option> <option value="M">M</option> <option value="F">F</option> <option value="OTHER">OTHER</option> </select> </div> <div class="col-md-4"> <label class="form-label mb-1">전공(major)</label> <input id="major" class="form-control form-control-sm" /> </div> <div class="col-md-6"> <label class="form-label mb-1">학력(education)</label> <input id="education" class="form-control form-control-sm" /> </div> <div class="col-md-6"> <label class="form-label mb-1">경력(career)</label> <input id="career" class="form-control form-control-sm" placeholder="간단 요약" /> </div> </div> <div class="mt-3"> <label class="form-label mb-1">subjects (JSON 배열 또는 콤마 구분)</label> <div class="small text-muted mb-1">입력 예: <span class="mono">C, Web</span> 또는 <span class="mono">[\"C\",\"Web\"]</span></div> <div id="subjectsQuick" class="d-flex flex-wrap gap-1 mb-1"></div> <textarea id="subjects" class="form-control form-control-sm" rows="3" placeholder='["Python","Scratch"] 또는 Python, Scratch'></textarea> </div> <div class="mt-3"> <label class="form-label mb-1">modes (JSON 배열 또는 콤마 구분)</label> <div class="small text-muted mb-1">권장 코드: <span class="mono">ZOOM</span>, <span class="mono">OFFLINE_1_1</span>, <span class="mono">OFFLINE_GROUP</span></div> <div id="modesQuick" class="d-flex flex-wrap gap-1 mb-1"></div> <textarea id="modes" class="form-control form-control-sm" rows="3" placeholder='["ZOOM","OFFLINE_1_1"]'></textarea> </div> <div class="mt-3"> <label class="form-label mb-1">career (상세)</label> <textarea id="career_detail" class="form-control form-control-sm" rows="5" placeholder="상세 경력"></textarea> <div class="small text-muted mt-1">※ 저장 시 career_detail이 비어있으면 career(간단 요약)가 저장됩니다.</div> </div> </div> </div> </div> </div> <script>
-(function{ const $ = (id)=>document.getElementById(id); const TOKEN_KEY = "codeai_admin_token"; const esc = (s)=>String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;"); const SUBJECT_PRESETS = ["Scratch","Python","C","C++","Java","JavaScript","Web","App","AI","Arduino","Minecraft","Roblox"]; const MODE_PRESETS = [ { value:"ZOOM", label:"줌(ZOOM)" }, { value:"OFFLINE_1_1", label:"오프라인 1:1" }, { value:"OFFLINE_GROUP", label:"오프라인 그룹" } ]; function showLogin(msg){ $("loginCard").classList.remove("d-none"); $("app").classList.add("d-none"); if(msg) $("loginMsg").textContent = msg; } function showApp{ $("loginCard").classList.add("d-none"); $("app").classList.remove("d-none"); $("loginMsg").textContent = ""; } function doLogout(reason){ localStorage.removeItem(TOKEN_KEY); showLogin(reason || "로그아웃 되었습니다."); } $("btnLogout")?.addEventListener("click", (e)=>{ e.preventDefault; doLogout; }); function isAuthError(e){ const m = (e && e.message) ? String(e.message) : ""; return m==="NO_TOKEN" || m==="INVALID_TOKEN" || m.includes("INVALID_TOKEN") || m.includes("NO_TOKEN") || m.includes("Unauthorized") || m.includes("401"); } async function auth(path, opts){ try { return await CodeAI.authRequest(path, TOKEN_KEY, opts); } catch(e) { if(isAuthError(e)) { doLogout("세션이 만료되어 로그아웃되었습니다. 다시 로그인해주세요."); } throw e; } } async function login{ $("loginMsg").textContent = "로그인 중…"; try{ const out = await CodeAI.request("/api/v1/admin/auth/login", { method:"POST", body: JSON.stringify({ email: $("email").value.trim, password: $("password").value }) }); localStorage.setItem(TOKEN_KEY, out.token); showApp; $("loginMsg").textContent = ""; await load; renderQuickButtons("subjectsQuick", "subjects", SUBJECT_PRESETS); renderQuickButtons("modesQuick", "modes", MODE_PRESETS); }catch(e){ $("loginMsg").textContent = "로그인 실패: " + (e.message || "아이디/비밀번호를 확인해주세요."); } } $("btnLogin").addEventListener("click", login); function getId{ const id = new URLSearchParams(location.search).get("id"); return id; } const setVal = (id, v)=>{ const el = $(id); if(!el) return; el.value = (v===null||v===undefined) ? "" : String(v); }; const setText = (id, v)=>{ const el = $(id); if(!el) return; el.textContent = (v===null||v===undefined) ? "" : String(v); }; const setChecked = (id, v)=>{ const el = $(id); if(!el) return; el.checked = !!Number(v||0); }; function prettyJSON(v){ if(v===null||v===undefined) return ""; try{ const obj = (typeof v === "string") ? JSON.parse(v) : v; return JSON.stringify(obj, null, 2); }catch{ return String(v); } } function parseList(text){ const t = String(text||"").trim; if(!t) return []; try{ const p = JSON.parse(t); if(Array.isArray(p)) return p.map(x=>String(x).trim).filter(Boolean); }catch{} // fallback: comma/newline return t .split(/[,\n]/g) .map(s=>s.trim) .filter(Boolean); } // DB 저장값(JSON 문자열/배열)을 관리자가 보기 쉬운 콤마 문자열로 변환 function listToInput(v){ if(v===null||v===undefined) return ""; try{ const obj = (typeof v === "string") ? JSON.parse(v) : v; if(Array.isArray(obj)) return obj.map(x=>String(x).trim).filter(Boolean).join(", "); }catch{} return String(v); } function renderQuickButtons(containerId, textareaId, items){ const box = $(containerId); const ta = $(textareaId); if(!box || !ta) return; const normalized = items.map(it=>{ if(typeof it === "string") return { value: it, label: it }; return { value: it.value, label: it.label }; }); box.innerHTML = normalized.map(it=> `<button type="button" class="btn btn-sm btn-outline-secondary" data-val="${esc(it.value)}">${esc(it.label)}</button>` ).join(""); function sync{ const cur = new Set(parseList(ta.value).map(x=>String(x))); box.querySelectorAll("button[data-val]").forEach(btn=>{ const v = btn.getAttribute("data-val"); const on = cur.has(v); btn.classList.toggle("btn-secondary", on); btn.classList.toggle("btn-outline-secondary", !on); }); } box.addEventListener("click", (e)=>{ const btn = e.target.closest("button[data-val]"); if(!btn) return; const v = btn.getAttribute("data-val"); const arr = parseList(ta.value); const set = new Set(arr.map(x=>String(x))); if(set.has(v)) set.delete(v); else set.add(v); ta.value = Array.from(set).join(", "); sync; }); ta.addEventListener("input", sync); sync; } function bindPhotoPreview{ const input = $("photo_url"); input?.addEventListener("input", =>{ const url = input.value.trim; const img = $("photo"); if(url){ img.src = url; img.classList.remove("d-none"); }else{ img.removeAttribute("src"); img.classList.add("d-none"); } }); } async function load{ const id = getId; if(!id){ $("msg").textContent = "id 파라미터가 없습니다."; return; } $("msg").textContent = "불러오는 중…"; const data = await auth(`/api/v1/admin/instructors/${encodeURIComponent(getId)}`); $("msg").textContent = ""; // left meta setText("view_id", data?.id); setText("view_created", data?.created_at); setText("view_updated", data?.updated_at); setText("view_pass", data?.password_hash || ""); // form setVal("name", data?.name); setVal("phone", data?.phone); setVal("email2", data?.email); setVal("region", data?.region); setVal("instructor_type", data?.instructor_type || ""); setVal("age", data?.age); setVal("gender", data?.gender || ""); setVal("major", data?.major); setVal("education", data?.education); setVal("career", data?.career); // DB에 career_detail 컬럼이 별도로 없을 수 있어 fallback 처리 setVal("career_detail", data?.career_detail || data?.career); setVal("subjects", listToInput(data?.subjects)); setVal("modes", listToInput(data?.modes)); setVal("photo_url", data?.photo_url || ""); setVal("status", data?.status || "ACTIVE"); setChecked("is_featured", data?.is_featured); setVal("admin_note", data?.admin_note); // quick buttons sync $("subjects")?.dispatchEvent(new Event("input")); $("modes")?.dispatchEvent(new Event("input")); // preview const p = (data?.photo_url || "").trim; const img = $("photo"); if(p){ img.src = p; img.classList.remove("d-none"); }else{ img.classList.add("d-none"); } } async function save{ const id = getId; if(!id) return; const saveMsg = $("saveMsg"); saveMsg.className = "small mb-2 text-muted"; saveMsg.textContent = "저장 중…"; try{ const subjects = parseList($("subjects").value); const modes = parseList($("modes").value); const payload = { name: $("name").value.trim, phone: $("phone").value.trim, email: $("email2").value.trim, region: $("region").value.trim || null, instructor_type: $("instructor_type").value || null, education: $("education").value.trim || null, career: ($("career_detail").value.trim || $("career").value.trim || null), major: $("major").value.trim || null, age: $("age").value.trim==="" ? null : Number($("age").value), gender: $("gender").value || null, photo_url: $("photo_url").value.trim || null, status: $("status").value, is_featured: $("is_featured").checked ? 1 : 0, admin_note: $("admin_note").value.trim || null, subjects, modes }; await auth(`/api/v1/admin/instructors/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(payload) }); saveMsg.className = "small mb-2 text-success"; saveMsg.textContent = "저장 완료"; await load; }catch(e){ saveMsg.className = "small mb-2 text-danger"; saveMsg.textContent = "저장 실패: " + (e?.message || "SERVER_ERROR"); } } async function resetPassword{ const saveMsg = $("saveMsg"); try{ const id = getId; if(!id) throw new Error("invalid id"); const ok = confirm("비밀번호를 임시 비밀번호로 초기화하고, 다음 로그인 시 변경을 강제합니다.\n\n진행할까요?"); if(!ok) return; const r = await auth(`/api/v1/admin/instructors/${encodeURIComponent(id)}/reset-password`, { method: "POST" }); saveMsg.className = "small mb-2 text-success"; saveMsg.textContent = `비밀번호 리셋 완료. 임시 비밀번호: ${r?.temp_password || "(서버 응답 없음)"}`; }catch(e){ const saveMsg = $("saveMsg"); saveMsg.className = "small mb-2 text-danger"; saveMsg.textContent = "비밀번호 리셋 실패: " + (e?.message || "SERVER_ERROR"); } } (async =>{ if(localStorage.getItem(TOKEN_KEY)) { showApp; try{ bindPhotoPreview; await load; renderQuickButtons("subjectsQuick", "subjects", SUBJECT_PRESETS); renderQuickButtons("modesQuick", "modes", MODE_PRESETS); }catch(e){ /* handled */ } } else { showLogin; } }); $("btnReload")?.addEventListener("click", (e)=>{ e.preventDefault; load; }); $("btnSave")?.addEventListener("click", (e)=>{ e.preventDefault; save; }); $("btnResetPw")?.addEventListener("click", (e)=>{ e.preventDefault; resetPassword; });
-});
+(function(){
+  const $ = (id)=>document.getElementById(id);
+  const TOKEN_KEY = "codeai_admin_token";
+
+  const SUBJECT_PRESETS = ["Scratch","Python","C","C++","Java","JavaScript","Web","App","AI","Arduino","Minecraft","Roblox"];
+  const MODE_PRESETS = [
+    { value:"ZOOM", label:"줌(ZOOM)" },
+    { value:"OFFLINE_1_1", label:"오프라인 1:1" },
+    { value:"OFFLINE_GROUP", label:"오프라인 그룹" }
+  ];
+
+  const esc = (s)=>String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+
+  function showLogin(msg){
+    $("loginCard")?.classList.remove("d-none");
+    $("app")?.classList.add("d-none");
+    if($("loginMsg")) $("loginMsg").textContent = msg || "";
+  }
+  function showApp(){
+    $("loginCard")?.classList.add("d-none");
+    $("app")?.classList.remove("d-none");
+    if($("loginMsg")) $("loginMsg").textContent = "";
+  }
+  function doLogout(reason){
+    try{ localStorage.removeItem(TOKEN_KEY); }catch(_){}
+    showLogin(reason || "로그아웃 되었습니다.");
+  }
+  function isAuthError(e){
+    const m = (e && e.message) ? String(e.message) : "";
+    return e?.status===401 || m==="NO_TOKEN" || m==="INVALID_TOKEN" || m.includes("Unauthorized") || m.includes("401");
+  }
+  async function auth(path, opts){
+    try{
+      return await CodeAI.authRequest(path, TOKEN_KEY, opts);
+    }catch(e){
+      if(isAuthError(e)) doLogout("세션이 만료되어 로그아웃되었습니다. 다시 로그인해주세요.");
+      throw e;
+    }
+  }
+
+  function getId(){
+    return new URLSearchParams(location.search).get("id");
+  }
+
+  function parseList(text){
+    const t = String(text||"").trim();
+    if(!t) return [];
+    try{
+      const v = JSON.parse(t);
+      if(Array.isArray(v)) return v.map(x=>String(x).trim()).filter(Boolean);
+    }catch(_){}
+    return t.split(/[,\\n]/g).map(s=>s.trim()).filter(Boolean);
+  }
+  function listToInput(v){
+    if(v===null||v===undefined) return "";
+    try{
+      const obj = (typeof v === "string") ? JSON.parse(v) : v;
+      if(Array.isArray(obj)) return obj.map(x=>String(x).trim()).filter(Boolean).join(", ");
+    }catch(_){}
+    return String(v);
+  }
+  function renderQuickButtons(containerId, textareaId, items){
+    const box = $(containerId);
+    const ta = $(textareaId);
+    if(!box || !ta) return;
+    const normalized = items.map(it=>{
+      if(typeof it === "string") return { value: it, label: it };
+      return { value: it.value, label: it.label };
+    });
+    box.innerHTML = normalized.map(it =>
+      `<button type="button" class="btn btn-sm btn-outline-secondary me-1 mb-1" data-val="${esc(it.value)}">${esc(it.label)}</button>`
+    ).join("");
+    function sync(){
+      const cur = new Set(parseList(ta.value).map(String));
+      box.querySelectorAll("button[data-val]").forEach(btn=>{
+        const v = btn.getAttribute("data-val");
+        const on = cur.has(v);
+        btn.classList.toggle("btn-secondary", on);
+        btn.classList.toggle("btn-outline-secondary", !on);
+      });
+    }
+    box.addEventListener("click", (e)=>{
+      const btn = e.target.closest("button[data-val]");
+      if(!btn) return;
+      const v = btn.getAttribute("data-val");
+      const set = new Set(parseList(ta.value).map(String));
+      if(set.has(v)) set.delete(v); else set.add(v);
+      ta.value = Array.from(set).join(", ");
+      sync();
+    });
+    ta.addEventListener("input", sync);
+    sync();
+  }
+
+  function bindPhotoPreview(){
+    const input = $("photo_url");
+    const img = $("photo");
+    if(!input || !img) return;
+    input.addEventListener("input", ()=>{
+      const url = String(input.value||"").trim();
+      if(url){
+        img.src = url;
+        img.classList.remove("d-none");
+      }else{
+        img.removeAttribute("src");
+        img.classList.add("d-none");
+      }
+    });
+  }
+
+  function setVal(id, v){
+    const el=$(id); if(!el) return;
+    el.value = (v===null||v===undefined) ? "" : String(v);
+  }
+  function setText(id, v){
+    const el=$(id); if(!el) return;
+    el.textContent = (v===null||v===undefined) ? "" : String(v);
+  }
+  function setChecked(id, v){
+    const el=$(id); if(!el) return;
+    el.checked = !!Number(v||0);
+  }
+
+  async function load(){
+    const id = getId();
+    if(!id){ if($("msg")) $("msg").textContent="id 파라미터가 없습니다."; return; }
+    if($("msg")) $("msg").textContent="불러오는 중…";
+    const data = await auth(`/api/v1/admin/instructors/${encodeURIComponent(id)}`, { method:"GET" });
+    if($("msg")) $("msg").textContent="";
+    setText("view_id", data?.id);
+    setText("view_created", data?.created_at);
+    setText("view_updated", data?.updated_at);
+    setText("view_pass", data?.password_hash || "");
+
+    setVal("name", data?.name);
+    setVal("phone", data?.phone);
+    setVal("email2", data?.email);
+    setVal("region", data?.region);
+    setVal("instructor_type", data?.instructor_type || "");
+    setVal("age", data?.age);
+    setVal("gender", data?.gender || "");
+    setVal("major", data?.major);
+    setVal("education", data?.education);
+    setVal("career", data?.career);
+    setVal("career_detail", data?.career_detail || data?.career);
+    setVal("subjects", listToInput(data?.subjects));
+    setVal("modes", listToInput(data?.modes));
+    setVal("photo_url", data?.photo_url || "");
+    setVal("status", data?.status || "ACTIVE");
+    setChecked("is_featured", data?.is_featured);
+    setVal("admin_note", data?.admin_note);
+
+    const img = $("photo");
+    const p = String(data?.photo_url||"").trim();
+    if(img){
+      if(p){ img.src=p; img.classList.remove("d-none"); }
+      else{ img.classList.add("d-none"); }
+    }
+
+    $("subjects")?.dispatchEvent(new Event("input"));
+    $("modes")?.dispatchEvent(new Event("input"));
+  }
+
+  async function save(){
+    const id = getId();
+    if(!id) return;
+    const saveMsg = $("saveMsg");
+    if(saveMsg){ saveMsg.className="small mb-2 text-muted"; saveMsg.textContent="저장 중…"; }
+    try{
+      const payload = {
+        name: $("name")?.value.trim() || null,
+        phone: $("phone")?.value.trim() || null,
+        email: $("email2")?.value.trim() || null,
+        region: $("region")?.value.trim() || null,
+        instructor_type: $("instructor_type")?.value || null,
+        education: $("education")?.value.trim() || null,
+        career: ($("career_detail")?.value.trim() || $("career")?.value.trim() || null),
+        major: $("major")?.value.trim() || null,
+        age: ($("age")?.value.trim()==="" ? null : Number($("age")?.value)),
+        gender: $("gender")?.value || null,
+        photo_url: $("photo_url")?.value.trim() || null,
+        status: $("status")?.value || "ACTIVE",
+        is_featured: $("is_featured")?.checked ? 1 : 0,
+        admin_note: $("admin_note")?.value.trim() || null,
+        subjects: parseList($("subjects")?.value),
+        modes: parseList($("modes")?.value)
+      };
+      await auth(`/api/v1/admin/instructors/${encodeURIComponent(id)}`, { method:"PUT", body: JSON.stringify(payload) });
+      if(saveMsg){ saveMsg.className="small mb-2 text-success"; saveMsg.textContent="저장 완료"; }
+      await load();
+    }catch(e){
+      if(saveMsg){ saveMsg.className="small mb-2 text-danger"; saveMsg.textContent="저장 실패: " + (e?.message || "SERVER_ERROR"); }
+    }
+  }
+
+  async function resetPassword(){
+    const id = getId();
+    if(!id) return;
+    const saveMsg = $("saveMsg");
+    try{
+      const ok = confirm("비밀번호를 임시 비밀번호로 초기화하고, 다음 로그인 시 변경을 강제합니다.\n\n진행할까요?");
+      if(!ok) return;
+      const r = await auth(`/api/v1/admin/instructors/${encodeURIComponent(id)}/reset-password`, { method:"POST" });
+      if(saveMsg){ saveMsg.className="small mb-2 text-success"; saveMsg.textContent = `비밀번호 리셋 완료. 임시 비밀번호: ${r?.temp_password || "(서버 응답 없음)"}`; }
+    }catch(e){
+      if(saveMsg){ saveMsg.className="small mb-2 text-danger"; saveMsg.textContent="비밀번호 리셋 실패: " + (e?.message || "SERVER_ERROR"); }
+    }
+  }
+
+  async function login(){
+    $("loginMsg").textContent = "로그인 중…";
+    try{
+      const out = await CodeAI.request("/api/v1/admin/auth/login", {
+        method:"POST",
+        body: JSON.stringify({ email: $("email").value.trim(), password: $("password").value })
+      });
+      localStorage.setItem(TOKEN_KEY, out.token);
+      showApp();
+      $("loginMsg").textContent = "";
+      bindPhotoPreview();
+      renderQuickButtons("subjectsQuick","subjects", SUBJECT_PRESETS);
+      renderQuickButtons("modesQuick","modes", MODE_PRESETS);
+      await load();
+    }catch(e){
+      $("loginMsg").textContent = "로그인 실패: " + (e?.message || "아이디/비밀번호를 확인해주세요.");
+    }
+  }
+
+  $("btnLogin")?.addEventListener("click", (e)=>{ e.preventDefault(); login(); });
+  $("btnLogout")?.addEventListener("click", (e)=>{ e.preventDefault(); doLogout(); });
+  $("btnReload")?.addEventListener("click", (e)=>{ e.preventDefault(); load(); });
+  $("btnSave")?.addEventListener("click", (e)=>{ e.preventDefault(); save(); });
+  $("btnResetPw")?.addEventListener("click", (e)=>{ e.preventDefault(); resetPassword(); });
+
+  (async ()=>{
+    if(localStorage.getItem(TOKEN_KEY)){
+      showApp();
+      try{
+        bindPhotoPreview();
+        renderQuickButtons("subjectsQuick","subjects", SUBJECT_PRESETS);
+        renderQuickButtons("modesQuick","modes", MODE_PRESETS);
+        await load();
+      }catch(e){ /* auth() handles logout */ }
+    }else{
+      showLogin();
+    }
+  })();
+})();
 </script>
 </body>
 </html>

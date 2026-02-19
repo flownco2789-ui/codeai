@@ -92,7 +92,7 @@ async function main(){
         photo: null
       }
     );
-    const id = r.insertId || (await conn.query("SELECT id FROM instructors WHERE email=:email", { email })).[0][0].id;
+    const id = r.insertId || (await conn.query("SELECT id FROM instructors WHERE email=:email", { email }))[0][0].id;
     instructorIds.push(id);
   }
 

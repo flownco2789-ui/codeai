@@ -3,8 +3,205 @@
 <head> <meta charset="utf-8" /> <meta name="viewport" content="width=device-width, initial-scale=1" /> <title>학생 신청 상세정보</title> <link rel="icon" href="assets/img/favicon.png" /> <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet"> <script src="codeai-config.js?v=20260213a"></script> <script src="codeai-api.js?v=20260213a"></script> <style> body { background:#f7f8fb; } .card { border-radius:16px; } .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; } img.photo { width:120px; height:120px; object-fit:cover; border-radius:16px; border:1px solid #e9ecef; } textarea { resize: vertical; } </style>
 </head>
 <body class="p-3"> <div class="container" style="max-width: 920px;"> <div class="d-flex justify-content-between align-items-center mb-3"> <div class="d-flex gap-2 align-items-center"> <a class="btn btn-sm btn-outline-secondary" href="admin.html">← 관리자 홈</a> </div> <button id="btnLogout" class="btn btn-sm btn-outline-danger">로그아웃</button> </div> <div id="loginCard" class="card p-3 mb-3 d-none"> <div class="row g-2 align-items-end"> <div class="col-md-5"> <label class="form-label mb-1">이메일</label> <input id="email" class="form-control" placeholder="admin@example.com" /> </div> <div class="col-md-5"> <label class="form-label mb-1">비밀번호</label> <input id="password" type="password" class="form-control" placeholder="••••••••" /> </div> <div class="col-md-2 d-grid"> <button id="btnLogin" class="btn btn-primary">로그인</button> </div> </div> <div id="loginMsg" class="small text-danger mt-2"></div> </div> <div id="app" class="card p-3"> <div class="d-flex justify-content-between align-items-center mb-2"> <div> <h5 class="mb-0">학생 신청 상세정보</h5> <div id="msg" class="small text-muted">불러오는 중…</div> </div> <div class="d-flex gap-2"> <button id="btnReload" class="btn btn-sm btn-outline-secondary">새로고침</button> <button id="btnSave" class="btn btn-sm btn-primary">저장</button> </div> </div> <div id="saveMsg" class="small mb-2"></div> <div class="row g-3"> <div class="col-md-4"> <div class="mt-1 small text-muted"> <div><b>ID</b>: <span id="view_id" class="mono"></span></div> <div><b>created_at</b>: <span id="view_created" class="mono"></span></div> </div> <div class="mt-3"> <label class="form-label mb-1">상태(status)</label> <select id="status" class="form-select form-select-sm"> <option value="SUBMITTED">SUBMITTED</option> <option value="MATCHING">MATCHING</option> <option value="INSTRUCTOR_SELECTED">INSTRUCTOR_SELECTED</option> <option value="ENROLLED">ENROLLED</option> <option value="CANCELLED">CANCELLED</option> </select> </div> <div class="mt-3"> <label class="form-label mb-1">강사 선택 (selected_instructor_id)</label> <input id="instSearch" class="form-control form-control-sm" placeholder="이름/이메일/전화로 검색" /> <select id="instSelect" class="form-select form-select-sm mt-2"></select> <div class="d-flex justify-content-between align-items-center mt-2"> <div id="instHint" class="small text-muted">강사 미선택 (NULL)</div> <button type="button" id="btnInstClear" class="btn btn-sm btn-outline-secondary">선택해제</button> </div> <!-- 저장용(숨김) --> <input id="selected_instructor_id" type="number" class="d-none" /> </div> <div class="mt-3"> <label class="form-label mb-1">관리자 비고(admin_note)</label> <textarea id="admin_note" class="form-control form-control-sm" rows="8" placeholder="관리자 메모"></textarea> </div> </div> <div class="col-md-8"> <div class="row g-2"> <div class="col-md-6"> <label class="form-label mb-1">이름(name)</label> <input id="name" class="form-control form-control-sm" /> </div> <div class="col-md-6"> <label class="form-label mb-1">전화(phone)</label> <input id="phone" class="form-control form-control-sm" placeholder="01012345678" /> </div> <div class="col-md-6"> <label class="form-label mb-1">목표(target)</label> <input id="target" class="form-control form-control-sm" placeholder="예: 중·고등" /> </div> <div class="col-md-6"> <label class="form-label mb-1">수업방식(mode)</label> <select id="mode" class="form-select form-select-sm"> <option value="ZOOM">ZOOM</option> <option value="OFFLINE_1_1">OFFLINE_1_1</option> <option value="OFFLINE_GROUP">OFFLINE_GROUP</option> </select> </div> <div class="col-md-6"> <label class="form-label mb-1">지역(region)</label> <input id="region" class="form-control form-control-sm" placeholder="오프라인이면 필수" /> </div> <div class="col-md-6"> <label class="form-label mb-1">선호 강사유형(preferred_instructor_type)</label> <select id="preferred_instructor_type" class="form-select form-select-sm"> <option value="ANY">ANY</option> <option value="COLLEGE">COLLEGE</option> <option value="EMPLOYEE">EMPLOYEE</option> <option value="FREELANCER">FREELANCER</option> <option value="FULLTIME_TUTOR">FULLTIME_TUTOR</option> <option value="OTHER">OTHER</option> </select> </div> </div> <div class="mt-3"> <label class="form-label mb-1">subjects (JSON 배열 또는 콤마 구분)</label> <textarea id="subjects" class="form-control form-control-sm" rows="3" placeholder='["Python","Scratch"] 또는 Python, Scratch'></textarea> </div> <div class="mt-3"> <label class="form-label mb-1">신청자 메모(note)</label> <textarea id="note" class="form-control form-control-sm" rows="5" placeholder="학생/학부모가 남긴 내용"></textarea> </div> </div> </div> </div> </div> <script>
-(function{ const $ = (id)=>document.getElementById(id); const TOKEN_KEY = "codeai_admin_token"; const esc = (s)=>String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;"); function showLogin(msg){ $("loginCard").classList.remove("d-none"); $("app").classList.add("d-none"); if(msg) $("loginMsg").textContent = msg; } function showApp{ $("loginCard").classList.add("d-none"); $("app").classList.remove("d-none"); $("loginMsg").textContent = ""; } function doLogout(reason){ localStorage.removeItem(TOKEN_KEY); showLogin(reason || "로그아웃 되었습니다."); } $("btnLogout")?.addEventListener("click", (e)=>{ e.preventDefault; doLogout; }); function isAuthError(e){ const m = (e && e.message) ? String(e.message) : ""; return m==="NO_TOKEN" || m==="INVALID_TOKEN" || m.includes("INVALID_TOKEN") || m.includes("NO_TOKEN") || m.includes("Unauthorized") || m.includes("401"); } async function auth(path, opts){ try { return await CodeAI.authRequest(path, TOKEN_KEY, opts); } catch(e) { if(isAuthError(e)) { doLogout("세션이 만료되어 로그아웃되었습니다. 다시 로그인해주세요."); } throw e; } } async function login{ $("loginMsg").textContent = "로그인 중…"; try{ const out = await CodeAI.request("/api/v1/admin/auth/login", { method:"POST", body: JSON.stringify({ email: $("email").value.trim, password: $("password").value }) }); localStorage.setItem(TOKEN_KEY, out.token); showApp; $("loginMsg").textContent = ""; await load; }catch(e){ $("loginMsg").textContent = "로그인 실패: " + (e.message || "아이디/비밀번호를 확인해주세요."); } } $("btnLogin").addEventListener("click", login); bindInstructorUI; function getId{ const id = new URLSearchParams(location.search).get("id"); return id; } const setVal = (id, v)=>{ const el = $(id); if(!el) return; el.value = (v===null||v===undefined) ? "" : String(v); }; const setText = (id, v)=>{ const el = $(id); if(!el) return; el.textContent = (v===null||v===undefined) ? "" : String(v); }; function prettyJSON(v){ if(v===null||v===undefined) return ""; try{ const obj = (typeof v === "string") ? JSON.parse(v) : v; return JSON.stringify(obj, null, 2); }catch{ return String(v); } } function parseList(text){ const t = String(text||"").trim; if(!t) return []; try{ const p = JSON.parse(t); if(Array.isArray(p)) return p.map(x=>String(x).trim).filter(Boolean); }catch{} return t .split(/[\n,]/g) .map(s=>s.trim) .filter(Boolean); } // ---------- 강사 검색/선택 드롭다운 ---------- let _allInstructors = null; function norm(s){ return String(s||"").toLowerCase; } async function ensureInstructorsLoaded{ if(_allInstructors) return _allInstructors; const out = await auth("/api/v1/admin/instructors", { method:"GET" }); _allInstructors = out.instructors || []; return _allInstructors; } function filterInstructors(q){ const list = _allInstructors || []; const nq = norm(q).trim; if(!nq) return list; return list.filter(i=>{ return norm(i.name).includes(nq) || norm(i.email).includes(nq) || norm(i.phone).includes(nq); }); } function renderInstructorSelect(list, selectedId){ const sel = $("instSelect"); if(!sel) return; let arr = Array.isArray(list) ? list.slice : []; const sid = selectedId ? Number(selectedId) : null; if(sid && !arr.some(x=>Number(x.id)===sid)){ const one = (_allInstructors||[]).find(x=>Number(x.id)===sid); if(one) arr.unshift(one); } const top = arr.slice(0, 200); sel.innerHTML = `<option value="">(선택 안함 / NULL)</option>` + top.map(i=>`<option value="${i.id}">${esc(i.name)}${i.is_featured ? " [메인]" : ""} (${esc(i.phone||"")})</option>`).join(""); sel.value = selectedId ? String(selectedId) : ""; } function syncSelectedInstructorFromSelect{ const sel = $("instSelect"); const hidden = $("selected_instructor_id"); if(!sel || !hidden) return; hidden.value = sel.value ? String(sel.value) : ""; updateInstructorHint; } function updateInstructorHint{ const hint = $("instHint"); const hidden = $("selected_instructor_id"); if(!hint || !hidden) return; const raw = String(hidden.value||"").trim; if(!raw){ hint.textContent = "강사 미선택 (NULL)"; return; } const sid = Number(raw); const one = (_allInstructors||[]).find(x=>Number(x.id)===sid); hint.textContent = one ? `선택된 강사: ${one.name} (${one.phone||""})` : `선택된 강사 ID: ${sid}`; } function bindInstructorUI{ $("instSelect")?.addEventListener("change", =>syncSelectedInstructorFromSelect); $("btnInstClear")?.addEventListener("click", =>{ if($("instSelect")) $("instSelect").value = ""; if($("selected_instructor_id")) $("selected_instructor_id").value = ""; updateInstructorHint; }); $("instSearch")?.addEventListener("input", =>{ const q = $("instSearch").value || ""; const current = $("selected_instructor_id")?.value || ""; renderInstructorSelect(filterInstructors(q), current); updateInstructorHint; }); } async function load{ const id = getId; if(!id){ $("msg").textContent = "id 파라미터가 없습니다."; return; } $("msg").textContent = "불러오는 중…"; const data = await auth(`/api/v1/admin/student-applications/${encodeURIComponent(id)}`); $("msg").textContent = ""; setText("view_id", data?.id); setText("view_created", data?.created_at); setVal("name", data?.name); setVal("phone", data?.phone); setVal("target", data?.target); setVal("mode", data?.mode || "ZOOM"); setVal("region", data?.region); setVal("preferred_instructor_type", data?.preferred_instructor_type || "ANY"); setVal("subjects", prettyJSON(data?.subjects)); setVal("note", data?.note); setVal("admin_note", data?.admin_note); setVal("status", data?.status || "SUBMITTED"); setVal("selected_instructor_id", data?.selected_instructor_id); // 강사 드롭다운 초기화 try{ await ensureInstructorsLoaded; const q = $("instSearch")?.value || ""; renderInstructorSelect(filterInstructors(q), data?.selected_instructor_id); updateInstructorHint; }catch(e){ /* ignore */ } } async function save{ const id = getId; if(!id) return; const saveMsg = $("saveMsg"); saveMsg.className = "small mb-2 text-muted"; saveMsg.textContent = "저장 중…"; try{ const subjects = parseList($("subjects").value); const sidRaw = $("selected_instructor_id").value.trim; const payload = { name: $("name").value.trim, phone: $("phone").value.trim, subjects, target: $("target").value.trim || null, mode: $("mode").value, region: $("region").value.trim || null, preferred_instructor_type: $("preferred_instructor_type").value, note: $("note").value.trim || null, admin_note: $("admin_note").value.trim || null, status: $("status").value, selected_instructor_id: sidRaw === "" ? null : Number(sidRaw) }; await auth(`/api/v1/admin/student-applications/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(payload) } ); saveMsg.className = "small mb-2 text-success"; saveMsg.textContent = "저장 완료"; await load; }catch(e){ saveMsg.className = "small mb-2 text-danger"; saveMsg.textContent = "저장 실패: " + (e?.message || "SERVER_ERROR"); } } (async =>{ if(localStorage.getItem(TOKEN_KEY)) { showApp; try{ await load; }catch(e){ /* handled */ } } else { showLogin; } }); $("btnReload")?.addEventListener("click", (e)=>{ e.preventDefault; load; }); $("btnSave")?.addEventListener("click", (e)=>{ e.preventDefault; save; });
-});
+(function(){
+  const $ = (id)=>document.getElementById(id);
+  const TOKEN_KEY = "codeai_admin_token";
+  const esc = (s)=>String(s ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+
+  function showLogin(msg){
+    $("loginCard")?.classList.remove("d-none");
+    $("app")?.classList.add("d-none");
+    if($("loginMsg")) $("loginMsg").textContent = msg || "";
+  }
+  function showApp(){
+    $("loginCard")?.classList.add("d-none");
+    $("app")?.classList.remove("d-none");
+    if($("loginMsg")) $("loginMsg").textContent = "";
+  }
+  function doLogout(reason){
+    try{ localStorage.removeItem(TOKEN_KEY); }catch(_){}
+    showLogin(reason || "로그아웃 되었습니다.");
+  }
+  function isAuthError(e){
+    const m = (e && e.message) ? String(e.message) : "";
+    return e?.status===401 || m==="NO_TOKEN" || m==="INVALID_TOKEN" || m.includes("Unauthorized") || m.includes("401");
+  }
+  async function auth(path, opts){
+    try{
+      return await CodeAI.authRequest(path, TOKEN_KEY, opts);
+    }catch(e){
+      if(isAuthError(e)) doLogout("세션이 만료되어 로그아웃되었습니다. 다시 로그인해주세요.");
+      throw e;
+    }
+  }
+
+  function getId(){ return new URLSearchParams(location.search).get("id"); }
+  function setVal(id, v){ const el=$(id); if(!el) return; el.value = (v===null||v===undefined) ? "" : String(v); }
+  function setText(id, v){ const el=$(id); if(!el) return; el.textContent = (v===null||v===undefined) ? "" : String(v); }
+
+  function parseList(text){
+    const t = String(text||"").trim();
+    if(!t) return [];
+    try{
+      const v = JSON.parse(t);
+      if(Array.isArray(v)) return v.map(x=>String(x).trim()).filter(Boolean);
+    }catch(_){}
+    return t.split(/[\\n,]/g).map(s=>s.trim()).filter(Boolean);
+  }
+
+  let _allInstructors = null;
+  async function ensureInstructorsLoaded(){
+    if(_allInstructors) return _allInstructors;
+    const out = await auth("/api/v1/admin/instructors", { method:"GET" });
+    _allInstructors = out.instructors || [];
+    return _allInstructors;
+  }
+  function norm(s){ return String(s||"").toLowerCase(); }
+  function filterInstructors(q){
+    const list = _allInstructors || [];
+    const nq = norm(q).trim();
+    if(!nq) return list;
+    return list.filter(i => norm(i.name).includes(nq) || norm(i.email).includes(nq) || norm(i.phone).includes(nq));
+  }
+  function renderInstructorSelect(list, selectedId){
+    const sel = $("instSelect");
+    if(!sel) return;
+    const arr = Array.isArray(list) ? list.slice() : [];
+    const sid = selectedId ? Number(selectedId) : null;
+    if(sid && !arr.some(x=>Number(x.id)===sid)){
+      const one = (_allInstructors||[]).find(x=>Number(x.id)===sid);
+      if(one) arr.unshift(one);
+    }
+    const top = arr.slice(0, 200);
+    sel.innerHTML = `<option value="">(선택 안함 / NULL)</option>` + top.map(i=>`<option value="${i.id}">${esc(i.name)}${i.is_featured ? " [메인]" : ""} (${esc(i.phone||"")})</option>`).join("");
+    sel.value = selectedId ? String(selectedId) : "";
+  }
+  function updateInstructorHint(){
+    const hint = $("instHint");
+    const hidden = $("selected_instructor_id");
+    if(!hint || !hidden) return;
+    const raw = String(hidden.value||"").trim();
+    if(!raw){ hint.textContent = "강사 미선택 (NULL)"; return; }
+    const sid = Number(raw);
+    const one = (_allInstructors||[]).find(x=>Number(x.id)===sid);
+    hint.textContent = one ? `선택된 강사: ${one.name} (${one.phone||""})` : `선택된 강사 ID: ${sid}`;
+  }
+  function syncSelectedInstructorFromSelect(){
+    const sel = $("instSelect");
+    const hidden = $("selected_instructor_id");
+    if(!sel || !hidden) return;
+    hidden.value = sel.value ? String(sel.value) : "";
+    updateInstructorHint();
+  }
+
+  async function load(){
+    const id = getId();
+    if(!id){ $("msg").textContent="id 파라미터가 없습니다."; return; }
+    $("msg").textContent = "불러오는 중…";
+    const data = await auth(`/api/v1/admin/student-applications/${encodeURIComponent(id)}`, { method:"GET" });
+    $("msg").textContent = "";
+    setText("view_id", data?.id);
+    setText("view_created", data?.created_at);
+
+    setVal("name", data?.name);
+    setVal("phone", data?.phone);
+    setVal("target", data?.target);
+    setVal("mode", data?.mode || "ZOOM");
+    setVal("region", data?.region);
+    setVal("preferred_instructor_type", data?.preferred_instructor_type || "ANY");
+    setVal("subjects", JSON.stringify(data?.subjects ?? [], null, 2));
+    setVal("note", data?.note);
+    setVal("admin_note", data?.admin_note);
+    setVal("status", data?.status || "SUBMITTED");
+    setVal("selected_instructor_id", data?.selected_instructor_id);
+
+    try{
+      await ensureInstructorsLoaded();
+      const q = $("instSearch")?.value || "";
+      renderInstructorSelect(filterInstructors(q), data?.selected_instructor_id);
+      updateInstructorHint();
+    }catch(_){}
+  }
+
+  async function save(){
+    const id = getId();
+    if(!id) return;
+    const saveMsg = $("saveMsg");
+    saveMsg.className="small mb-2 text-muted";
+    saveMsg.textContent="저장 중…";
+    try{
+      const subjects = parseList($("subjects").value);
+      const sidRaw = $("selected_instructor_id").value.trim();
+      const payload = {
+        name: $("name").value.trim(),
+        phone: $("phone").value.trim(),
+        subjects,
+        target: $("target").value.trim() || null,
+        mode: $("mode").value,
+        region: $("region").value.trim() || null,
+        preferred_instructor_type: $("preferred_instructor_type").value,
+        note: $("note").value.trim() || null,
+        admin_note: $("admin_note").value.trim() || null,
+        status: $("status").value,
+        selected_instructor_id: sidRaw === "" ? null : Number(sidRaw)
+      };
+      await auth(`/api/v1/admin/student-applications/${encodeURIComponent(id)}`, { method:"PUT", body: JSON.stringify(payload) });
+      saveMsg.className="small mb-2 text-success";
+      saveMsg.textContent="저장 완료";
+      await load();
+    }catch(e){
+      saveMsg.className="small mb-2 text-danger";
+      saveMsg.textContent="저장 실패: " + (e?.message || "SERVER_ERROR");
+    }
+  }
+
+  async function login(){
+    $("loginMsg").textContent = "로그인 중…";
+    try{
+      const out = await CodeAI.request("/api/v1/admin/auth/login", {
+        method:"POST",
+        body: JSON.stringify({ email: $("email").value.trim(), password: $("password").value })
+      });
+      localStorage.setItem(TOKEN_KEY, out.token);
+      showApp();
+      $("loginMsg").textContent = "";
+      await load();
+    }catch(e){
+      $("loginMsg").textContent = "로그인 실패: " + (e?.message || "아이디/비밀번호를 확인해주세요.");
+    }
+  }
+
+  // bind instructor UI
+  $("instSelect")?.addEventListener("change", syncSelectedInstructorFromSelect);
+  $("btnInstClear")?.addEventListener("click", ()=>{
+    if($("instSelect")) $("instSelect").value="";
+    if($("selected_instructor_id")) $("selected_instructor_id").value="";
+    updateInstructorHint();
+  });
+  $("instSearch")?.addEventListener("input", ()=>{
+    const q = $("instSearch")?.value || "";
+    const current = $("selected_instructor_id")?.value || "";
+    renderInstructorSelect(filterInstructors(q), current);
+    updateInstructorHint();
+  });
+
+  $("btnLogin")?.addEventListener("click", (e)=>{ e.preventDefault(); login(); });
+  $("btnLogout")?.addEventListener("click", (e)=>{ e.preventDefault(); doLogout(); });
+  $("btnReload")?.addEventListener("click", (e)=>{ e.preventDefault(); load(); });
+  $("btnSave")?.addEventListener("click", (e)=>{ e.preventDefault(); save(); });
+
+  (async ()=>{
+    if(localStorage.getItem(TOKEN_KEY)){
+      showApp();
+      try{
+        await ensureInstructorsLoaded();
+        await load();
+      }catch(e){ /* auth handles logout */ }
+    }else{
+      showLogin();
+    }
+  })();
+})();
 </script>
 </body>
 </html>
