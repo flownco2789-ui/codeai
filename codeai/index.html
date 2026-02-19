@@ -642,8 +642,7 @@
     wrap.className = 'codeai-msg ' + (role === 'user' ? 'user' : 'bot');
     var bubble = document.createElement('div');
     bubble.className = 'codeai-bubble';
-    bubble.innerHTML = escapeHtml(text).replace(/
-/g,'<br/>');
+    bubble.innerHTML = escapeHtml(text).replace(/\r?\n/g, '<br/>');
     wrap.appendChild(bubble);
     body.appendChild(wrap);
     scrollBottom();
