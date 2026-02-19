@@ -12,10 +12,63 @@ import multer from "multer";
 import { makePoolFromEnv } from "./db.js";
 import { mustStr, isValidPhone, normalizePhone, formatPhone, pickMeta } from "./validators.js";
 import { hashPassword, verifyPassword, signToken, requireAuth } from "./auth.js";
-import { notifyAdminsByRoles, notifyPhone, logNotification } from "./notify.js";
+import { notifyAdminsByRoles, notifyPhone, logNotification, sendAlimtalk } from "./notify.js";
 import { createSmartStoreProduct } from "./smartstore.js";
 
 const app = express();
+
+// ----------------------------
+// Alimtalk 템플릿/문구 구성
+// ----------------------------
+
+const COMPANY_NAME = (process.env.COMPANY_NAME || "CodeAI").trim();
+const PORTAL_URL = (process.env.PORTAL_URL || "https://www.codeai.co.kr/portal.html").trim();
+
+// Aligo 템플릿 코드
+const ALIGO_TPL_APPLY = (process.env.ALIGO_TPL_APPLY || process.env.ALIGO_TPL_STUDENT_APPLY_PARENT || "UF_5399").trim();
+const ADMISSION_NOTIFY_PHONES = String(process.env.ADMISSION_NOTIFY_PHONES || process.env.ADMIN_NOTIFY_PHONES || "")
+  .split(/[,;]/).map(s=>s.trim()).filter(Boolean);
+const ALIGO_TPL_WEEKLY = (process.env.ALIGO_TPL_WEEKLY || process.env.ALIGO_TPL_WEEKLY_REPORT || "UF_5398").trim();
+
+function fmtMonthDayKST(date=new Date()){
+  try{
+    const fmt = new Intl.DateTimeFormat('ko-KR', { timeZone:'Asia/Seoul', month:'numeric', day:'numeric' });
+    const parts = fmt.formatToParts(date);
+    const m = parts.find(p=>p.type==='month')?.value;
+    const d = parts.find(p=>p.type==='day')?.value;
+    if(m && d) return `${m}월${d}일`;
+  }catch(_){/* ignore */}
+  const kst = new Date(date.getTime() + 9*60*60*1000);
+  return `${kst.getUTCMonth()+1}월${kst.getUTCDate()}일`;
+}
+
+function addQuery(url, params){
+  const u = new URL(url);
+  for(const [k,v] of Object.entries(params||{})){
+    if(v === undefined || v === null || v === "") continue;
+    u.searchParams.set(k, String(v));
+  }
+  return u.toString();
+}
+
+function buildApplyCompletedMessage({ customerName, applyContent, companyName=COMPANY_NAME }){
+  const name = (customerName || "고객").trim();
+  const content = (applyContent || "").trim();
+  return `${name} 님! ${companyName}신청이 완료되었습니다.\n${content}\n\n강사 또는 관리자가 빠른 시간내로 연락드리겠습니다.`;
+}
+
+function buildWeeklyReportMessage({ companyName=COMPANY_NAME, monthDay, studentName, learningStatus, participation }){
+  const md = (monthDay || fmtMonthDayKST()).trim();
+  const nm = (studentName || "").trim();
+  const ls = (learningStatus || "").trim();
+  const pa = (participation || "C").trim();
+  return `[${companyName}] 학습보고안내\n`+
+         `□ 보고서작성일 : ${md}\n`+
+         `□ 이름 : ${nm}\n`+
+         `□ 학습상황 : ${ls}\n`+
+         `□ 수업참여도 : ${pa}(A~C)\n\n`+
+         `자세한 내용은 하단 [학습보고서 확인]에서 확인하세요.`;
+}
 const pool = makePoolFromEnv();
 const db = pool; // alias for legacy code
 
@@ -211,6 +264,53 @@ app.post("/api/v1/public/student-applications", async (req,res)=>{
       id, name, phone: formatPhone(phone), subjects, target, mode, region, preferredInstructorType
     });
 
+    // 학부모(신청자)에게 신청완료 알림톡 (UF_5399)
+    try{
+      const applyContent = [
+        subjects?.length ? `과목: ${subjects.join(", ")}` : null,
+        target ? `대상: ${target}` : null,
+        mode ? `수업형태: ${mode}` : null,
+        (mode && mode !== "ZOOM" && region) ? `지역: ${region}` : null,
+        preferredInstructorType ? `선호강사유형: ${preferredInstructorType}` : null,
+        note ? `메모: ${note}` : null
+      ].filter(Boolean).join("\n");
+
+      const message = buildApplyCompletedMessage({ customerName: name, applyContent });
+      await sendAlimtalk(pool, {
+        toPhone: phone,
+        toName: name,
+        eventType: "STUDENT_APPLY_CONFIRMED",
+        payload: { id, name, phone: formatPhone(phone), subjects, target, mode, region, preferredInstructorType },
+        tplCode: ALIGO_TPL_APPLY,
+        subject: "신청완료안내",
+        message
+      });
+    
+
+      // 입학관리 담당자(또는 지정된 번호)에도 신청완료 알림톡 동시 발송
+      if(ADMISSION_NOTIFY_PHONES.length){
+        const adminApplyContent = [
+          `고객명: ${name}`,
+          `연락처: ${formatPhone(phone)}`,
+          applyContent
+        ].filter(Boolean).join("\n");
+        const adminMessage = buildApplyCompletedMessage({ customerName: "입학관리 담당자", applyContent: adminApplyContent });
+        for(const adminPhone of ADMISSION_NOTIFY_PHONES){
+          await sendAlimtalk(pool, {
+            toPhone: adminPhone,
+            toName: "입학관리 담당자",
+            eventType: "STUDENT_APPLY_CONFIRMED_ADMIN",
+            payload: { id, applicantName: name, applicantPhone: formatPhone(phone), subjects, target, mode, region, preferredInstructorType },
+            tplCode: ALIGO_TPL_APPLY,
+            subject: "신청완료안내",
+            message: adminMessage
+          });
+        }
+      }
+}catch(e){
+      console.error("Alimtalk student-apply confirm failed:", e?.message || e);
+    }
+
     ok(res, { studentApplication: { id } });
   }catch(e){
     console.error(e);
@@ -295,15 +395,25 @@ app.get("/api/v1/public/featured-instructors", async (req,res)=>{
   }
 });
 
-// 통계(총 강사 수 / 총 수강생 수)
+// 통계(랜딩페이지 카운터: 누적 수강 / 강사 수)
+// - total_enrollments: enrollments 테이블 총 건수
+// - total_instructors: ACTIVE 강사 수
+// - total_students: (호환용) student_applications 기준 유니크 전화번호 수
 app.get("/api/v1/public/stats", async (req,res)=>{
   try{
-    const [[a]] = await pool.query("SELECT COUNT(*) AS cnt FROM instructors WHERE status='ACTIVE'");
-    const [[b]] = await pool.query("SELECT COUNT(DISTINCT phone) AS cnt FROM student_applications");
-    ok(res, { total_instructors: Number(a.cnt||0), total_students: Number(b.cnt||0) });
-  }catch(e){
-    console.error(e);
-    bad(res,"SERVER_ERROR","Failed",500);
+    const [[i]] = await pool.query("SELECT COUNT(*) AS cnt FROM instructors WHERE status='ACTIVE'");
+    // 누적 수강(결제/배정 완료 포함) — 단순 총건수. 필요하면 status 조건을 추가하세요.
+    const [[e]] = await pool.query("SELECT COUNT(*) AS cnt FROM enrollments");
+    const [[s]] = await pool.query("SELECT COUNT(DISTINCT phone) AS cnt FROM student_applications");
+    ok(res, {
+      total_instructors: Number(i?.cnt||0),
+      total_enrollments: Number(e?.cnt||0),
+      total_students: Number(s?.cnt||0)
+    });
+  }catch(err){
+    console.error("public stats failed:", err?.code||err?.message||err);
+    // 카운터는 실패해도 페이지는 동작하도록 0 반환
+    ok(res, { total_instructors: 0, total_enrollments: 0, total_students: 0 });
   }
 });
 
@@ -405,6 +515,29 @@ app.post("/api/v1/public/instructor-applications", upload.single("photo"), async
     await notifyAdminsByRoles(pool, ["SUPER_ADMIN","SUB_ADMIN","INSTRUCTOR_ADMIN"], "INSTRUCTOR_APPLICATION_CREATED", {
       id, name, phone: formatPhone(phone), email, subjects, modes, region
     });
+
+    // 강사(신청자)에게 신청완료 알림톡 (UF_5399) - 동일 템플릿 사용
+    try{
+      const applyContent = [
+        subjects?.length ? `과목: ${subjects.join(", ")}` : null,
+        modes?.length ? `수업형태: ${modes.join(", ")}` : null,
+        region ? `지역: ${region}` : null,
+        email ? `이메일: ${email}` : null
+      ].filter(Boolean).join("\n");
+
+      const message = buildApplyCompletedMessage({ customerName: name, applyContent });
+      await sendAlimtalk(pool, {
+        toPhone: phone,
+        toName: name,
+        eventType: "INSTRUCTOR_APPLY_CONFIRMED",
+        payload: { id, name, phone: formatPhone(phone), email, subjects, modes, region },
+        tplCode: ALIGO_TPL_APPLY,
+        subject: "신청완료안내",
+        message
+      });
+    }catch(e){
+      console.error("Alimtalk instructor-apply confirm failed:", e?.message || e);
+    }
 
     ok(res, { instructorApplication: { id }});
   }catch(e){
@@ -1602,6 +1735,81 @@ app.post("/api/v1/instructor/enrollments/:enrollmentId/weekly-reports", requireI
   }
 });
 
+// 주간 학습보고서 발송(학부모 알림톡) - UF_5398
+app.post("/api/v1/instructor/enrollments/:enrollmentId/weekly-reports/:reportId/send", requireInstructor(), async (req,res)=>{
+  try{
+    const instructorId = req.user.id;
+    const enrollmentId = Number(req.params.enrollmentId);
+    const reportId = Number(req.params.reportId);
+    if(!enrollmentId || !reportId) return bad(res,"INVALID_INPUT","enrollmentId/reportId required");
+
+    const [[enr]] = await pool.query(
+      "SELECT e.id, sa.name AS student_name, sa.phone AS student_phone " +
+      "FROM enrollments e JOIN student_applications sa ON sa.id=e.student_application_id " +
+      "WHERE e.id=:eid AND e.instructor_id=:iid",
+      { eid: enrollmentId, iid: instructorId }
+    );
+    if(!enr) return bad(res,"NOT_FOUND","enrollment not found",404);
+    if(!enr.student_phone) return bad(res,"NO_PHONE","parent phone not found",400);
+
+    const [[rep]] = await pool.query(
+      "SELECT id, enrollment_id, week_start_date, project_feedback, instructor_comment, metrics_json, created_at " +
+      "FROM weekly_reports WHERE id=:rid AND enrollment_id=:eid",
+      { rid: reportId, eid: enrollmentId }
+    );
+    if(!rep) return bad(res,"NOT_FOUND","weekly report not found",404);
+
+    const metrics = safeJson(rep.metrics_json, {});
+
+    const learningStatus = mustStr(req.body?.learningStatus) ||
+      mustStr(rep.instructor_comment) ||
+      mustStr(rep.project_feedback) ||
+      (metrics && typeof metrics === 'object' && metrics.summary ? String(metrics.summary) : "학습보고서 확인");
+
+    let participation = (mustStr(req.body?.participation) || "").trim().toUpperCase();
+    if(!["A","B","C"].includes(participation)){
+      const focus = Number(metrics?.focus ?? metrics?.attendance ?? 0);
+      if(Number.isFinite(focus) && focus >= 80) participation = "A";
+      else if(Number.isFinite(focus) && focus >= 50) participation = "B";
+      else participation = "C";
+    }
+
+    const monthDay = fmtMonthDayKST(new Date());
+    const message = buildWeeklyReportMessage({
+      monthDay,
+      studentName: enr.student_name,
+      learningStatus,
+      participation
+    });
+
+    const link = addQuery(PORTAL_URL, { enrollmentId, reportId });
+    const buttonJson = JSON.stringify({
+      button: [{
+        name: "학습보고서 확인",
+        linkType: "WL",
+        linkP: link,
+        linkM: link
+      }]
+    });
+
+    const result = await sendAlimtalk(pool, {
+      toPhone: enr.student_phone,
+      toName: enr.student_name,
+      eventType: "WEEKLY_REPORT_SENT",
+      payload: { enrollmentId, reportId, week_start_date: rep.week_start_date },
+      tplCode: ALIGO_TPL_WEEKLY,
+      subject: "학습보고서",
+      message,
+      buttonJson
+    });
+
+    ok(res, { sent: result?.ok === true, notificationId: result?.id || null, result });
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","failed to send weekly report",500);
+  }
+});
+
 app.put("/api/v1/instructor/enrollments/:id/consult-done", requireAuth("INSTRUCTOR"), async (req,res)=>{
   try{
     const id = Number(req.params.id);
@@ -1728,6 +1936,12 @@ app.post("/api/v1/portal/login", async (req,res)=>{
     console.error(e);
     bad(res,"SERVER_ERROR","Failed",500);
   }
+});
+
+
+app.post("/api/v1/portal/logout", requireAuth("PORTAL"), async (req,res)=>{
+  // Stateless JWT logout: client deletes token. This endpoint exists for UX/audit/logging.
+  ok(res, { ok:true });
 });
 
 app.get("/api/v1/portal/enrollments", requireAuth("PORTAL"), async (req,res)=>{

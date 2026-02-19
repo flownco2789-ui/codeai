@@ -1,17 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CodeAI 학부모 포털</title>
-  <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
-  <script src="codeai-config.js?v=20260213a"></script>
-  <script src="codeai-api.js?v=20260213b"></script>
-  <style>
-    body { background:#f7f8fb; }
-    .card { border-radius:16px; }
-    .muted { color:#6c757d; }
-    .kpi-card{background:#fff;border-radius:16px;padding:14px;box-shadow:0 6px 18px rgba(16,24,40,.06);border:1px solid rgba(16,24,40,.06);}
+<head> <meta charset="utf-8" /> <meta name="viewport" content="width=device-width, initial-scale=1" /> <title>CodeAI 학부모 포털</title> <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet"> <link href="assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet"> <link href="assets/css/style.css" rel="stylesheet"> <script src="codeai-config.js?v=20260213v9"></script> <script src="codeai-api.js?v=20260213v9"></script> <style> body{padding-top:86px;background:#f7f8fb;}  .portal-topbar{background:#fff;border:1px solid rgba(16,24,40,.08);border-radius:18px;padding:10px 14px;box-shadow:0 6px 18px rgba(16,24,40,.06);} .portal-logo{height:34px;width:auto;} .section-box{border-radius:18px;padding:14px;margin-bottom:14px;} .section-login-bg{background:linear-gradient(180deg, rgba(13,110,253,.10), rgba(247,248,251,1));} .section-select-bg{background:linear-gradient(180deg, rgba(25,135,84,.10), rgba(247,248,251,1));} .section-reports-bg{background:linear-gradient(180deg, rgba(255,193,7,.14), rgba(247,248,251,1));} body { background:#f7f8fb; } .card { border-radius:16px; } .muted { color:#6c757d; } .kpi-card{background:#fff;border-radius:16px;padding:14px;box-shadow:0 6px 18px rgba(16,24,40,.06);border:1px solid rgba(16,24,40,.06);}
 .kpi-title{font-size:12px;color:#6c757d;margin-bottom:4px;}
 .kpi-value{font-size:22px;font-weight:700;line-height:1.1;}
 .kpi-delta{font-size:12px;margin-top:6px;}
@@ -20,58 +9,82 @@
 canvas{width:100%;height:140px;}
 .section-title{font-weight:700;}
 .badge-soft{background:#eef2ff;color:#374151;border:1px solid #e5e7eb;}
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-  </style>
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; } </style>
 </head>
 <body>
-  <div class="container py-4">
-    <div class="d-flex align-items-center justify-content-between mb-3">
-      <div>
-        <h3 class="mb-1">학부모 포털</h3>
-        <div class="muted">최근 12주 주간 학습보고서(승인본)</div>
-      </div>
-      <div class="text-end">
-        <a href="index.html" class="btn btn-sm btn-outline-secondary">홈으로</a>
-      </div>
-    </div>
-
-    <div id="loginCard" class="card p-3 mb-3">
-      <div class="row g-2 align-items-end">
-        <div class="col-md-5">
-          <label class="form-label">학부모 전화번호</label>
-          <input id="phone" class="form-control" placeholder="01012345678" />
-        </div>
-        <div class="col-md-5">
-          <label class="form-label">학부모 코드(6자리)</label>
-          <input id="code" class="form-control mono" placeholder="123456" />
-          <div class="small muted mt-1">※ 코드는 결제완료/재발급 시 안내됩니다.</div>
-        </div>
-        <div class="col-md-2 d-grid">
-          <button id="btnLogin" class="btn btn-primary">로그인</button>
-        </div>
-      </div>
-      <div id="loginMsg" class="small muted mt-2"></div>
-    </div>
-
-    <div id="app" class="d-none">
-      <div class="card p-3 mb-3">
-        <div class="row g-2 align-items-end">
-          <div class="col-md-8">
-            <label class="form-label mb-1">수강 선택</label>
-            <select id="enrSel" class="form-select"></select>
-          </div>
-          <div class="col-md-4 d-grid">
-            <button id="btnLoad" class="btn btn-outline-primary">주간보고서 불러오기</button>
-          </div>
-        </div>
-        <div id="appMsg" class="small muted mt-2"></div>
-      </div>
-
-      <div id="reports"></div>
-    </div>
+<header id="header" class="fixed-top d-flex align-items-center">
+  <div class="container d-flex justify-content-between align-items-center">
+    <a href="index.html" class="logo"><img src="assets/img/logo.png" alt="CODEAI" class="img-fluid"></a>
+    <nav id="navbar" class="navbar">
+      <ul>
+  <li><a href="index.html">Home</a></li>
+  <li><a href="index.html#enroll" class="js-open-enroll-chat">수강신청</a></li>
+  <li><a href="about.html">About</a></li>
+  <li><a href="services.html">온라인수업</a></li>
+  <li><a href="portfolio.html">수업효과</a></li>
+  <li><a href="team.html">커리큘럼</a></li>
+  <li><a href="contact.html">수강상담</a></li>
+  <li><a href="instructor-apply.html">강사등록신청</a></li>
+  <li><a href="instructor.html">강사포털</a></li>
+  <li><a class="active" href="portal.html">학부모포털</a></li>
+</ul>
+      <i class="bi bi-list mobile-nav-toggle"></i>
+    </nav>
   </div>
+</header>
+<div class="container py-4"> <div class="portal-topbar d-flex align-items-center justify-content-between mb-3"> <div class="d-flex align-items-center gap-2"> <img class="portal-logo" src="assets/img/logo.png" alt="학원 로고"> <div> <div class="fw-bold">학부모 포털</div> <div class="small muted">최근 12주 주간 학습보고서(승인본)</div> </div> </div> <div class="d-flex gap-2"> <button id="btnLogoutTop" class="btn btn-sm btn-outline-danger d-none">로그아웃</button> </div>
+</div> <div id="loginCard" class="card p-3 mb-3 section-box section-login-bg">
+  <div class="text-center mb-2">
+    <img src="assets/img/logo.png" alt="학원 로고" style="height:42px;width:auto;">
+    <div class="fw-bold mt-2">학부모 포털 로그인</div>
+    <div class="small text-muted">최근 12주 주간 학습보고서(승인본)</div>
+  </div>
+  <div class="d-flex flex-column gap-2">
+    <label class="form-label mb-0">학부모 전화번호</label>
+    <input id="phone" class="form-control" placeholder="01012345678" />
+    <label class="form-label mb-0 mt-2">인증번호</label>
+    <div class="d-flex gap-2">
+      <input id="code" class="form-control" placeholder="4자리" />
+      <button id="btnSendCode" class="btn btn-outline-primary" type="button">전송</button>
+    </div>
+    <button id="btnLogin" class="btn btn-primary mt-2" type="button">로그인</button>
+  </div>
+</div> <div class="col-md-2 d-grid"> <button id="btnLogin" class="btn btn-primary">로그인</button> </div> </div> <div id="loginMsg" class="small muted mt-2"></div> </div> <div id="app" class="d-none"> <div class="card p-3 mb-3"> <div class="row g-2 align-items-end"> <div class="col-md-8"> <label class="form-label mb-1">수강 선택</label> <select id="enrSel" class="form-select"></select> </div> <div class="col-md-4"> <div class="d-flex gap-2"> <button id="btnLoad" class="btn btn-outline-primary flex-fill">주간보고서 불러오기</button> <button id="btnLogout" class="btn btn-outline-secondary flex-fill d-none">로그아웃</button> </div> </div> </div> <div id="appMsg" class="small muted mt-2"></div> </div> <div id="reports"></div> </div> </div> <script src="portal-app.js?v=20260213v9"></script>
+<script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script>
+/* codeaiNavToggle v1 - minimal hamburger menu toggle (no external deps) */
+(function(){
+  const navbar = document.querySelector('#navbar');
+  const toggle = document.querySelector('.mobile-nav-toggle');
+  if(!navbar || !toggle) return;
 
+  function closeNav(){
+    navbar.classList.remove('navbar-mobile');
+    toggle.classList.remove('bi-x');
+    toggle.classList.add('bi-list');
+  }
 
-  <script src="portal-app.js?v=20260213b"></script>
+  toggle.addEventListener('click', function(){
+    navbar.classList.toggle('navbar-mobile');
+    toggle.classList.toggle('bi-list');
+    toggle.classList.toggle('bi-x');
+  });
+
+  // close menu after click
+  navbar.addEventListener('click', function(e){
+    const a = e.target.closest('a');
+    if(!a) return;
+    if(navbar.classList.contains('navbar-mobile')) closeNav();
+  });
+
+  // close when clicking outside
+  document.addEventListener('click', function(e){
+    if(!navbar.classList.contains('navbar-mobile')) return;
+    const inNav = e.target.closest('#navbar');
+    if(inNav) return;
+    closeNav();
+  });
+})();
+</script>
 </body>
 </html>

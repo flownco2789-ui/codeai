@@ -1,17 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CodeAI 강사 포털</title>
-  <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
-  <script src="codeai-config.js?v=20260213a"></script>
-  <script src="codeai-api.js?v=20260213a"></script>
-  <style>
-    body { background:#f7f8fb; }
-    .card { border-radius:16px; }
-    .muted { color:#6c757d; }
-    .kpi-card{background:#fff;border-radius:16px;padding:14px;box-shadow:0 6px 18px rgba(16,24,40,.06);border:1px solid rgba(16,24,40,.06);}
+<head> <meta charset="utf-8" /> <meta name="viewport" content="width=device-width, initial-scale=1" /> <title>CodeAI 강사 포털</title> <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet"> <link href="assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet"> <link href="assets/css/style.css" rel="stylesheet"> <script src="codeai-config.js?v=20260213v9"></script> <script src="codeai-api.js?v=20260213v9"></script> <style> body{padding-top:86px;background:#f7f8fb;}  body { background:#f7f8fb; } .card { border-radius:16px; }  .section-box{border-radius:18px;padding:14px;margin-bottom:14px;} .section-login-bg{background:linear-gradient(180deg, rgba(13,110,253,.10), rgba(247,248,251,1));} .muted { color:#6c757d; } .kpi-card{background:#fff;border-radius:16px;padding:14px;box-shadow:0 6px 18px rgba(16,24,40,.06);border:1px solid rgba(16,24,40,.06);}
 .kpi-title{font-size:12px;color:#6c757d;margin-bottom:4px;}
 .kpi-value{font-size:22px;font-weight:700;line-height:1.1;}
 .kpi-delta{font-size:12px;margin-top:6px;}
@@ -20,198 +9,78 @@
 canvas{width:100%;height:140px;}
 .section-title{font-weight:700;}
 .badge-soft{background:#eef2ff;color:#374151;border:1px solid #e5e7eb;}
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-  </style>
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; } </style>
 </head>
 <body>
-  <div class="container py-4">
-    <div class="d-flex align-items-center justify-content-between mb-3">
-      <div>
-        <h3 class="mb-1">강사 포털</h3>
-        <div class="muted">학생 선택 → 최근 12주 대시보드 → 주간보고서 작성(업서트)</div>
-      </div>
-      <div class="text-end d-flex gap-2 justify-content-end">
-        <button id="btnLogout" type="button" class="btn btn-sm btn-outline-danger d-none">로그아웃</button>
-        <a href="index.html" class="btn btn-sm btn-outline-secondary">홈으로</a>
-      </div>
-    </div>
-
-    <div id="loginCard" class="card p-3 mb-3">
-      <div class="row g-2 align-items-end">
-        <div class="col-md-5">
-          <label class="form-label">이메일</label>
-          <input id="email" class="form-control" placeholder="teacher01@codeai.co.kr" />
-        </div>
-        <div class="col-md-5">
-          <label class="form-label">비밀번호</label>
-          <input id="password" class="form-control" type="password" placeholder="teacher1234!" />
-        </div>
-        <div class="col-md-2 d-grid">
-          <button id="btnLogin" class="btn btn-primary">로그인</button>
-        </div>
-      </div>
-      <div id="loginMsg" class="small muted mt-2"></div>
-    </div>
-
-
-
-    <div id="changePwCard" class="card p-3 mb-3 d-none">
-      <div class="mb-2"><b>비밀번호 변경</b> <span class="muted small">(최초 로그인 시 필수)</span></div>
-      <div class="row g-2 align-items-end">
-        <div class="col-md-5">
-          <label class="form-label">새 비밀번호</label>
-          <input id="newPw" class="form-control" type="password" placeholder="8자 이상 권장" />
-        </div>
-        <div class="col-md-5">
-          <label class="form-label">새 비밀번호 확인</label>
-          <input id="newPw2" class="form-control" type="password" />
-        </div>
-        <div class="col-md-2 d-grid">
-          <button id="btnChangePw" class="btn btn-primary">변경</button>
-        </div>
-      </div>
-      <div id="changePwMsg" class="small muted mt-2"></div>
-    </div>
-    <div id="app" class="d-none">
-
-      <div class="card p-3 mb-3">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <div><b>내 정보</b> <span class="muted small">(강사 프로필)</span></div>
-          <div class="muted small" id="meEmail"></div>
-        </div>
-        <div class="row g-2">
-          <div class="col-md-4">
-            <label class="form-label mb-1">이름</label>
-            <input id="meName" class="form-control" />
-          </div>
-          <div class="col-md-4">
-            <label class="form-label mb-1">휴대폰</label>
-            <input id="mePhone" class="form-control" placeholder="010-0000-0000" />
-          </div>
-          <div class="col-md-4">
-            <label class="form-label mb-1">오프라인 가능 지역</label>
-            <input id="meRegion" class="form-control" placeholder="예: 수지, 분당 / 줌만 가능하면 '없음'" />
-          </div>
-
-          <div class="col-md-12">
-            <label class="form-label mb-1">가능 과목</label>
-            <input id="meSubjects" class="form-control" placeholder="예: 파이썬, 웹개발, 알고리즘" />
-            <div class="small muted mt-1">쉼표(,)로 구분해 입력</div>
-          </div>
-
-          <div class="col-md-12">
-            <label class="form-label mb-1">수업 가능 방식</label>
-            <div class="d-flex flex-wrap gap-2">
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="meModeZOOM">
-                <label class="form-check-label" for="meModeZOOM">줌(전국)</label>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="meModeOFFLINE_1_1">
-                <label class="form-check-label" for="meModeOFFLINE_1_1">오프라인 1:1</label>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="meModeOFFLINE_GROUP">
-                <label class="form-check-label" for="meModeOFFLINE_GROUP">오프라인 그룹</label>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label mb-1">학력(선택)</label>
-            <input id="meEducation" class="form-control" placeholder="예: OO대학교 컴퓨터공학과" />
-          </div>
-          <div class="col-md-4">
-            <label class="form-label mb-1">전공(선택)</label>
-            <input id="meMajor" class="form-control" placeholder="예: 컴퓨터공학" />
-          </div>
-          <div class="col-md-4">
-            <label class="form-label mb-1">프로필 사진 URL(선택)</label>
-            <input id="mePhotoUrl" class="form-control" placeholder="https://..." />
-          </div>
-          <div class="col-md-12">
-            <label class="form-label mb-1">경력/소개(선택)</label>
-            <textarea id="meCareer" class="form-control" rows="3" placeholder="예: 5년 경력, 학생 맞춤 커리큘럼..."></textarea>
-          </div>
-
-          <div class="col-md-12 d-flex justify-content-between align-items-center">
-            <div class="small muted" id="meMsg"></div>
-            <button id="btnSaveMe" class="btn btn-outline-primary">내 정보 저장</button>
-          </div>
-        </div>
-      </div>
-      <div class="card p-3 mb-3">
-        <div class="row g-2 align-items-end">
-          <div class="col-md-8">
-            <label class="form-label mb-1">담당 학생(Enrollment)</label>
-            <select id="enrSel" class="form-select"></select>
-          </div>
-          <div class="col-md-4 d-grid">
-            <button id="btnRefresh" class="btn btn-outline-primary">새로고침</button>
-          </div>
-        </div>
-        <div id="msg" class="small muted mt-2"></div>
-      </div>
-
-      <div class="row g-3">
-        <div class="col-lg-7">
-          <div class="card p-3">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <div><b>최근 12주</b> <span class="muted small">(작성/대기/승인/반려)</span></div>
-              <div class="muted small" id="count"></div>
-            </div>
-            <div id="dash" class="mb-3"></div>
-        <div id="weeklyList"></div>
-          </div>
-        </div>
-
-        <div class="col-lg-5">
-          <div class="card p-3">
-            <div class="mb-2"><b>주간 학습보고서 작성</b></div>
-            <div class="row g-2">
-              <div class="col-12">
-                <label class="form-label mb-1">주 시작일(월요일) - 비우면 이번 주</label>
-                <input id="weekStartDate" class="form-control mono" placeholder="YYYY-MM-DD" />
-              </div>
-              <div class="col-6">
-                <label class="form-label mb-1">출석(1~3)</label>
-                <input id="attendance" class="form-control" type="number" min="0" max="7" />
-              </div>
-              <div class="col-6">
-                <label class="form-label mb-1">숙제완료(%)</label>
-                <input id="homework" class="form-control" type="number" min="0" max="100" />
-              </div>
-              <div class="col-6">
-                <label class="form-label mb-1">집중도(%)</label>
-                <input id="focus" class="form-control" type="number" min="0" max="100" />
-              </div>
-              <div class="col-6">
-                <label class="form-label mb-1">오답수</label>
-                <input id="mistakes" class="form-control" type="number" min="0" max="99" />
-              </div>
-              <div class="col-12">
-                <label class="form-label mb-1">알고 점수</label>
-                <input id="algoScore" class="form-control" type="number" min="0" max="100" />
-              </div>
-              <div class="col-12">
-                <label class="form-label mb-1">프로젝트/피드백</label>
-                <textarea id="projectFeedback" class="form-control" rows="3"></textarea>
-              </div>
-              <div class="col-12">
-                <label class="form-label mb-1">강사 코멘트</label>
-                <textarea id="instructorComment" class="form-control" rows="3"></textarea>
-              </div>
-              <div class="col-12 d-grid">
-                <button id="btnSave" class="btn btn-primary">저장(업서트)</button>
-              </div>
-            </div>
-            <div id="saveMsg" class="small muted mt-2"></div>
-          </div>
-        </div>
-      </div>
-    </div>
+<header id="header" class="fixed-top d-flex align-items-center">
+  <div class="container d-flex justify-content-between align-items-center">
+    <a href="index.html" class="logo"><img src="assets/img/logo.png" alt="CODEAI" class="img-fluid"></a>
+    <nav id="navbar" class="navbar">
+      <ul>
+  <li><a href="index.html">Home</a></li>
+  <li><a href="index.html#enroll" class="js-open-enroll-chat">수강신청</a></li>
+  <li><a href="about.html">About</a></li>
+  <li><a href="services.html">온라인수업</a></li>
+  <li><a href="portfolio.html">수업효과</a></li>
+  <li><a href="team.html">커리큘럼</a></li>
+  <li><a href="contact.html">수강상담</a></li>
+  <li><a href="instructor-apply.html">강사등록신청</a></li>
+  <li><a class="active" href="instructor.html">강사포털</a></li>
+  <li><a href="portal.html">학부모포털</a></li>
+</ul>
+      <i class="bi bi-list mobile-nav-toggle"></i>
+    </nav>
   </div>
+</header>
+<div class="container py-4"> <div class="d-flex align-items-center justify-content-between mb-3"> <div> <h3 class="mb-1">강사 포털</h3> <div class="muted">학생 선택 → 최근 12주 대시보드 → 주간보고서 작성(업서트)</div> </div> <div class="text-end d-flex gap-2 justify-content-end"> <button id="btnLogout" type="button" class="btn btn-sm btn-outline-danger d-none">로그아웃</button> </div> </div> <div id="loginCard" class="card p-3 mb-3 section-box section-login-bg">
+  <div class="text-center mb-2">
+    <img src="assets/img/logo.png" alt="학원 로고" style="height:42px;width:auto;">
+    <div class="fw-bold mt-2">강사 포털 로그인</div>
+    <div class="small text-muted">수업 배정 · 학생 관리 · 주간 보고서</div>
+  </div>
+  <div class="d-flex flex-column gap-2">
+    <label class="form-label mb-0">이메일</label>
+    <input id="email" class="form-control" placeholder="teacher01@codeai.co.kr" />
+    <label class="form-label mb-0 mt-2">비밀번호</label>
+    <input id="password" type="password" class="form-control" placeholder="비밀번호" />
+    <button id="btnLogin" class="btn btn-primary mt-2" type="button">로그인</button>
+  </div>
+</div> <div id="loginMsg" class="small muted mt-2"></div> </div> <div id="changePwCard" class="card p-3 mb-3 d-none"> <div class="mb-2"><b>비밀번호 변경</b> <span class="muted small">(최초 로그인 시 필수)</span></div> <div class="row g-2 align-items-end"> <div class="col-md-5"> <label class="form-label">새 비밀번호</label> <input id="newPw" class="form-control" type="password" placeholder="8자 이상 권장" /> </div> <div class="col-md-5"> <label class="form-label">새 비밀번호 확인</label> <input id="newPw2" class="form-control" type="password" /> </div> <div class="col-md-2 d-grid"> <button id="btnChangePw" class="btn btn-primary">변경</button> </div> </div> <div id="changePwMsg" class="small muted mt-2"></div> </div> <div id="app" class="d-none"> <div class="card p-3 mb-3"> <div class="d-flex justify-content-between align-items-center mb-2"> <div><b>내 정보</b> <span class="muted small">(강사 프로필)</span></div> <div class="muted small" id="meEmail"></div> </div> <div class="row g-2"> <div class="col-md-4"> <label class="form-label mb-1">이름</label> <input id="meName" class="form-control" /> </div> <div class="col-md-4"> <label class="form-label mb-1">휴대폰</label> <input id="mePhone" class="form-control" placeholder="010-0000-0000" /> </div> <div class="col-md-4"> <label class="form-label mb-1">오프라인 가능 지역</label> <input id="meRegion" class="form-control" placeholder="예: 수지, 분당 / 줌만 가능하면 '없음'" /> </div> <div class="col-md-12"> <label class="form-label mb-1">가능 과목</label> <input id="meSubjects" class="form-control" placeholder="예: 파이썬, 웹개발, 알고리즘" /> <div class="small muted mt-1">쉼표(,)로 구분해 입력</div> </div> <div class="col-md-12"> <label class="form-label mb-1">수업 가능 방식</label> <div class="d-flex flex-wrap gap-2"> <div class="form-check"> <input class="form-check-input" type="checkbox" id="meModeZOOM"> <label class="form-check-label" for="meModeZOOM">줌(전국)</label> </div> <div class="form-check"> <input class="form-check-input" type="checkbox" id="meModeOFFLINE_1_1"> <label class="form-check-label" for="meModeOFFLINE_1_1">오프라인 1:1</label> </div> <div class="form-check"> <input class="form-check-input" type="checkbox" id="meModeOFFLINE_GROUP"> <label class="form-check-label" for="meModeOFFLINE_GROUP">오프라인 그룹</label> </div> </div> </div> <div class="col-md-4"> <label class="form-label mb-1">학력(선택)</label> <input id="meEducation" class="form-control" placeholder="예: OO대학교 컴퓨터공학과" /> </div> <div class="col-md-4"> <label class="form-label mb-1">전공(선택)</label> <input id="meMajor" class="form-control" placeholder="예: 컴퓨터공학" /> </div> <div class="col-md-4"> <label class="form-label mb-1">프로필 사진 URL(선택)</label> <input id="mePhotoUrl" class="form-control" placeholder="https://..." /> </div> <div class="col-md-12"> <label class="form-label mb-1">경력/소개(선택)</label> <textarea id="meCareer" class="form-control" rows="3" placeholder="예: 5년 경력, 학생 맞춤 커리큘럼..."></textarea> </div> <div class="col-md-12 d-flex justify-content-between align-items-center"> <div class="small muted" id="meMsg"></div> <button id="btnSaveMe" class="btn btn-outline-primary">내 정보 저장</button> </div> </div> </div> <div class="card p-3 mb-3"> <div class="row g-2 align-items-end"> <div class="col-md-8"> <label class="form-label mb-1">담당 학생(Enrollment)</label> <select id="enrSel" class="form-select"></select> </div> <div class="col-md-4 d-grid"> <button id="btnRefresh" class="btn btn-outline-primary">새로고침</button> </div> </div> <div id="msg" class="small muted mt-2"></div> </div> <div class="row g-3"> <div class="col-lg-7"> <div class="card p-3"> <div class="d-flex justify-content-between align-items-center mb-2"> <div><b>최근 12주</b> <span class="muted small">(작성/대기/승인/반려)</span></div> <div class="muted small" id="count"></div> </div> <div id="dash" class="mb-3"></div> <div id="weeklyList"></div> </div> </div> <div class="col-lg-5"> <div class="card p-3"> <div class="mb-2"><b>주간 학습보고서 작성</b></div> <div class="row g-2"> <div class="col-12"> <label class="form-label mb-1">주 시작일(월요일) - 비우면 이번 주</label> <input id="weekStartDate" class="form-control mono" placeholder="YYYY-MM-DD" /> </div> <div class="col-6"> <label class="form-label mb-1">출석(1~3)</label> <input id="attendance" class="form-control" type="number" min="0" max="7" /> </div> <div class="col-6"> <label class="form-label mb-1">숙제완료(%)</label> <input id="homework" class="form-control" type="number" min="0" max="100" /> </div> <div class="col-6"> <label class="form-label mb-1">집중도(%)</label> <input id="focus" class="form-control" type="number" min="0" max="100" /> </div> <div class="col-6"> <label class="form-label mb-1">오답수</label> <input id="mistakes" class="form-control" type="number" min="0" max="99" /> </div> <div class="col-12"> <label class="form-label mb-1">알고 점수</label> <input id="algoScore" class="form-control" type="number" min="0" max="100" /> </div> <div class="col-12"> <label class="form-label mb-1">프로젝트/피드백</label> <textarea id="projectFeedback" class="form-control" rows="3"></textarea> </div> <div class="col-12"> <label class="form-label mb-1">강사 코멘트</label> <textarea id="instructorComment" class="form-control" rows="3"></textarea> </div> <div class="col-12 d-grid gap-2"> <button id="btnSave" class="btn btn-primary">저장(업서트)</button> <button id="btnSendWeekly" class="btn btn-outline-success" disabled>발송(학부모 알림톡)</button> </div> </div> <div id="saveMsg" class="small muted mt-2"></div> </div> </div> </div> </div> </div> <script src="instructor-app.js?v=20260219v10"></script>
+<script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script>
+/* codeaiNavToggle v1 - minimal hamburger menu toggle (no external deps) */
+(function(){
+  const navbar = document.querySelector('#navbar');
+  const toggle = document.querySelector('.mobile-nav-toggle');
+  if(!navbar || !toggle) return;
 
-  <script src="instructor-app.js?v=20260213a"></script>
+  function closeNav(){
+    navbar.classList.remove('navbar-mobile');
+    toggle.classList.remove('bi-x');
+    toggle.classList.add('bi-list');
+  }
+
+  toggle.addEventListener('click', function(){
+    navbar.classList.toggle('navbar-mobile');
+    toggle.classList.toggle('bi-list');
+    toggle.classList.toggle('bi-x');
+  });
+
+  // close menu after click
+  navbar.addEventListener('click', function(e){
+    const a = e.target.closest('a');
+    if(!a) return;
+    if(navbar.classList.contains('navbar-mobile')) closeNav();
+  });
+
+  // close when clicking outside
+  document.addEventListener('click', function(e){
+    if(!navbar.classList.contains('navbar-mobile')) return;
+    const inNav = e.target.closest('#navbar');
+    if(inNav) return;
+    closeNav();
+  });
+})();
+</script>
 </body>
 </html>

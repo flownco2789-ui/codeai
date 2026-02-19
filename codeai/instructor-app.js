@@ -1,6 +1,7 @@
 (function(){
   const TOKEN_KEY = "codeai_instructor_token";
 let WEEKLY_CACHE = new Map(); // key: YYYY-MM-DD (week_start_date)
+  let LAST_WEEKLY_REPORT_ID = null;
   const $ = (id)=>document.getElementById(id);
   const bind = (id, ev, fn)=>{ const el=$(id); if(el) el.addEventListener(ev, fn); };
 
@@ -9,6 +10,37 @@ let WEEKLY_CACHE = new Map(); // key: YYYY-MM-DD (week_start_date)
   function isUnauthorizedError(e){
     const m = String(e && e.message || "");
     return (e && e.status===401) || ["UNAUTHORIZED","NO_TOKEN","HTTP_401","INVALID_TOKEN"].includes(m) || m.includes("HTTP_401");
+  }
+
+  async function sendWeekly(){
+    const eid = Number($("enrSel")?.value);
+    if(!eid) return alert("학생을 먼저 선택하세요.");
+    if(!LAST_WEEKLY_REPORT_ID) return alert("먼저 '저장(업서트)'으로 보고서를 저장한 뒤 발송하세요.");
+
+    const btnSend = $("btnSendWeekly");
+    const oldText = btnSend ? btnSend.textContent : "";
+    if(btnSend){ btnSend.disabled = true; btnSend.textContent = "발송중…"; }
+
+    try{
+      const out = await CodeAI.authRequest(
+        `/api/v1/instructor/enrollments/${eid}/weekly-reports/${LAST_WEEKLY_REPORT_ID}/send`,
+        TOKEN_KEY,
+        { method:"POST", body: JSON.stringify({}) }
+      );
+      if(out?.sent){
+        $("saveMsg").textContent = "알림톡 발송 완료";
+      }else{
+        $("saveMsg").textContent = "알림톡 발송 실패 (관리자 로그 확인)";
+      }
+    }catch(e){
+      if(isUnauthorizedError(e)){
+        doLogout("세션이 만료되어 로그아웃 되었습니다. 다시 로그인 해주세요.");
+        return;
+      }
+      alert(e.message || e);
+    }finally{
+      if(btnSend){ btnSend.disabled = false; btnSend.textContent = oldText || "발송(학부모 알림톡)"; }
+    }
   }
   function isPwChangeRequired(e){
     return (e && e.code==="PASSWORD_CHANGE_REQUIRED") || String(e && e.message || "").includes("PASSWORD_CHANGE_REQUIRED") || String(e && e.message || "").includes("비밀번호 변경");
@@ -236,6 +268,10 @@ function fillWeeklyFormFromCache(){
   async function loadWeekly(){
     const eid = Number($("enrSel").value);
     if(!eid) return;
+    // 다른 학생 선택 시 발송버튼은 저장 후 활성화
+    LAST_WEEKLY_REPORT_ID = null;
+    const btnSend = $("btnSendWeekly");
+    if(btnSend) btnSend.disabled = true;
     $("msg").textContent = "주간보고서 불러오는 중…";
     try{
       const out = await CodeAI.authRequest(`/api/v1/instructor/enrollments/${eid}/weekly-reports`, TOKEN_KEY, { method:"GET" });
@@ -630,10 +666,15 @@ paint();
         project_feedback: $("projectFeedback").value,
         instructor_comment: $("instructorComment").value
       };
-      await CodeAI.authRequest(`/api/v1/instructor/enrollments/${eid}/weekly-reports`, TOKEN_KEY, {
+      const out = await CodeAI.authRequest(`/api/v1/instructor/enrollments/${eid}/weekly-reports`, TOKEN_KEY, {
         method:"POST",
         body: JSON.stringify(payload)
       });
+
+      LAST_WEEKLY_REPORT_ID = out?.report?.id || null;
+      const btnSend = $("btnSendWeekly");
+      if(btnSend) btnSend.disabled = !LAST_WEEKLY_REPORT_ID;
+
       $("saveMsg").textContent = "저장 완료 (관리자 검수 대기)";
       await loadWeekly();
     }catch(e){
@@ -645,6 +686,7 @@ paint();
     }
   }
   bind("btnSave","click", saveWeekly);
+  bind("btnSendWeekly","click", sendWeekly);
   bind("btnRefresh","click", async ()=>{ await loadEnrollments(); });
 
   bind("enrSel","change", loadWeekly);

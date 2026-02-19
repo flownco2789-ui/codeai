@@ -7,6 +7,7 @@
   }
   function resetToLogin(msg){
     try{ localStorage.removeItem(TOKEN_KEY); }catch(_){}
+    try{ const bt=$("btnLogoutTop"); if(bt) bt.classList.add("d-none"); }catch(_){ }
     $("app").classList.add("d-none");
     $("loginCard").classList.remove("d-none");
     if(msg) $("loginMsg").textContent = msg;
@@ -22,6 +23,7 @@
       localStorage.setItem(TOKEN_KEY, out.token);
       $("loginCard").classList.add("d-none");
       $("app").classList.remove("d-none");
+      try{ const bt=$("btnLogoutTop"); if(bt) bt.classList.remove("d-none"); }catch(_){ }
       $("loginMsg").textContent = "";
       await loadEnrollments();
     }catch(e){
@@ -515,10 +517,32 @@ paint();
 
   $("btnLoad").addEventListener("click", loadWeekly);
 
+  // top bar logout button (same behavior)
+  try{ $("btnLogoutTop").addEventListener("click", doLogout); }catch(_){ }
+
+
+
+  async function doLogout(){
+    try{
+      $("appMsg").textContent = "로그아웃 중…";
+    }catch(_){ }
+    try{
+      // JWT는 서버 상태를 저장하지 않지만, 로그 기록/감사를 위해 엔드포인트를 둡니다.
+      await CodeAI.authRequest("/api/v1/portal/logout", TOKEN_KEY, { method:"POST" });
+    }catch(_){ /* ignore */ }
+    resetToLogin("로그아웃 되었습니다.");
+    try{ $("reports").innerHTML = ""; }catch(_){}
+    try{ $("enrSel").innerHTML = ""; }catch(_){}
+    try{ $("appMsg").textContent = ""; }catch(_){}
+  }
+  const btnLogout = $("btnLogout");
+  if(btnLogout) btnLogout.addEventListener("click", doLogout);
+
   (async ()=>{
     if(localStorage.getItem(TOKEN_KEY)){
       $("loginCard").classList.add("d-none");
       $("app").classList.remove("d-none");
+      try{ const bt=$("btnLogoutTop"); if(bt) bt.classList.remove("d-none"); }catch(_){ }
       await loadEnrollments();
     }
   })();
