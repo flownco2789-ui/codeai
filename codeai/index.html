@@ -53,7 +53,7 @@
 <img alt="CODEAI" class="hero-logo animate__animated animate__fadeInDown" src="assets/img/logo.png"/>
 <h2 class="animate__animated animate__fadeInDown">1:1 · 프로젝트 그룹 온라인 코드 협업 수업 <span>CodeAI</span></h2>
 <p class="animate__animated animate__fadeInUp">줌 실시간 수업 + GitHub/Live Share 협업으로 ‘같이 만들며’ 배우고, 결과물(포트폴리오)까지 완성합니다.</p>
-<div class="hero-stats animate__animated animate__fadeInUp"> <div class="hero-stat"> <div class="hero-stat-label">누적 수강</div> <div class="hero-stat-value"><span id="statEnrollments">-</span><span class="hero-stat-unit">건</span></div> </div> <div class="hero-stat"> <div class="hero-stat-label">강사 수</div> <div class="hero-stat-value"><span id="statInstructors">-</span><span class="hero-stat-unit">명</span></div> </div>
+<div class="hero-stats animate__animated animate__fadeInUp"> <div class="hero-stat"> <div class="hero-stat-label">누적 수강</div> <div class="hero-stat-value"><span id="statEnrollments">-</span><span class="hero-stat-unit">건</span></div> </div> <div class="hero-stat"> <div class="hero-stat-label">강사 수</div> <div class="hero-stat-value"><span id="statInstructorsHero">-</span><span class="hero-stat-unit">명</span></div> </div>
 </div> <a class="btn-get-started animate__animated animate__fadeInUp js-open-enroll-chat" href="#enroll">수강신청(채팅)</a>
 </div>
 </div>
@@ -482,7 +482,7 @@
 </div>
 </div>
 </div>
-</section> <!-- ===== Featured Instructors (A안) ===== --> <section id="featured-instructors" class="py-5" style="background:#f7f8fb;"> <div class="container"> <div class="d-flex align-items-end justify-content-between mb-3"> <div> <h2 class="h3 mb-1">메인 강사</h2> <div class="text-muted">대표 강사 20명을 한눈에 확인하세요.</div> </div> <div class="text-muted small"> 총 강사 <span id="statInstructors">-</span> · 총 수강생 <span id="statStudents">-</span> </div> </div> <div id="featuredGrid" class="row g-3"></div> </div> </section> <script>
+</section> <!-- ===== Featured Instructors (A안) ===== --> <section id="featured-instructors" class="py-5" style="background:#f7f8fb;"> <div class="container"> <div class="d-flex align-items-end justify-content-between mb-3"> <div> <h2 class="h3 mb-1">메인 강사</h2> <div class="text-muted">대표 강사 20명을 한눈에 확인하세요.</div> </div> <div class="text-muted small"> 총 강사 <span id="statInstructorsFeatured">-</span> · 총 수강생 <span id="statStudents">-</span> </div> </div> <div id="featuredGrid" class="row g-3"></div> </div> </section> <script>
 (function(){
   // Featured / stats safe loader (no hard failure if elements missing)
   async function safeFetchJson(url){
@@ -496,7 +496,8 @@
     if(stats){
       const set = (id,v)=>{ const el=document.getElementById(id); if(el) el.textContent = String(v??""); };
       set("statStudents", stats.students);
-      set("statInstructors", stats.instructors);
+      set("statInstructorsHero", stats.instructors);
+      set("statInstructorsFeatured", stats.instructors);
       set("statLessons", stats.lessons);
     }
     const featured = await safeFetchJson("/api/v1/public/featured-instructors");
