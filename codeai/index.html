@@ -601,7 +601,204 @@
 </div>
 </div>
 <script>
-(function(){})();
+(function(){
+  'use strict';
+
+  var fab = document.getElementById('codeaiChatFab');
+  var widget = document.getElementById('codeaiChatWidget');
+  var btnClose = document.getElementById('codeaiChatClose');
+  var btnRestart = document.getElementById('codeaiChatRestart');
+  var body = document.getElementById('codeaiChatBody');
+  var quick = document.getElementById('codeaiChatQuick');
+  var input = document.getElementById('codeaiChatInput');
+  var btnSend = document.getElementById('codeaiChatSend');
+
+  if(!fab || !widget || !btnClose || !btnRestart || !body || !quick || !input || !btnSend){
+    return; // DOM이 예상과 다르면 조용히 종료
+  }
+
+  function qsAll(sel){ try{ return Array.prototype.slice.call(document.querySelectorAll(sel)); }catch(_){ return []; } }
+
+  function openChat(){
+    widget.classList.add('open');
+    widget.setAttribute('aria-modal','true');
+    try{ input.focus(); }catch(_){}
+  }
+  function closeChat(){
+    widget.classList.remove('open');
+    widget.setAttribute('aria-modal','false');
+  }
+  function scrollBottom(){
+    try{ body.scrollTop = body.scrollHeight; }catch(_){}
+  }
+  function escapeHtml(s){
+    return String(s || '').replace(/[&<>"']/g, function(ch){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]);
+    });
+  }
+  function addMsg(role, text){
+    var wrap = document.createElement('div');
+    wrap.className = 'codeai-msg ' + (role === 'user' ? 'user' : 'bot');
+    var bubble = document.createElement('div');
+    bubble.className = 'codeai-bubble';
+    bubble.innerHTML = escapeHtml(text).replace(/
+/g,'<br/>');
+    wrap.appendChild(bubble);
+    body.appendChild(wrap);
+    scrollBottom();
+  }
+  function setQuick(options){
+    // options: [{label, value}]
+    quick.innerHTML = '';
+    if(!options || !options.length) return;
+    options.forEach(function(opt){
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'codeai-quick-btn';
+      b.textContent = opt.label;
+      b.addEventListener('click', function(){
+        handleUserInput(opt.value != null ? opt.value : opt.label, true);
+      });
+      quick.appendChild(b);
+    });
+  }
+
+  var state = { step:'name', data:{} };
+
+  function reset(){
+    state = { step:'name', data:{} };
+    body.innerHTML = '';
+    quick.innerHTML = '';
+    addMsg('bot', '안녕하세요! 😊\n수강신청을 도와드릴게요.\n먼저 학생(또는 보호자) 성함을 알려주세요.');
+    setQuick([]);
+  }
+
+  function normalizePhone(s){
+    var d = String(s||'').replace(/[^0-9]/g,'');
+    return d;
+  }
+
+  async function submit(){
+    var payload = {
+      name: state.data.name,
+      phone: state.data.phone,
+      target: state.data.target,
+      consent: true
+    };
+
+    addMsg('bot','신청 내용을 접수하고 있어요… 잠시만요!');
+    try{
+      var api = (window.CodeAI && window.CodeAI.request) ? window.CodeAI : null;
+      var res;
+      if(api){
+        res = await api.request('/api/v1/applications/enroll', { method:'POST', body: JSON.stringify(payload) });
+      }else{
+        var base = (window.CODEAI_API_BASE || 'https://api.codeai.co.kr').replace(/\/+$/g,'');
+        res = await fetch(base + '/api/v1/applications/enroll', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify(payload)
+        }).then(function(r){ return r.json().then(function(j){ if(!r.ok) throw j; return j; }); });
+      }
+
+      if(res && res.ok){
+        addMsg('bot','접수 완료! ✅\n담당자가 빠른 시간 내에 연락드릴게요.\n(성함: ' + payload.name + ' / 연락처: ' + payload.phone + ' / 대상: ' + payload.target + ')');
+        setQuick([{label:'채팅 닫기', value:'__close__'},{label:'새로 신청', value:'__restart__'}]);
+        state.step = 'done';
+      }else{
+        addMsg('bot','죄송해요. 접수 중 오류가 발생했어요.\n잠시 후 다시 시도해 주세요.');
+        setQuick([{label:'다시 시도', value:'__submit__'},{label:'처음부터', value:'__restart__'}]);
+      }
+    }catch(err){
+      addMsg('bot','죄송해요. 접수 중 오류가 발생했어요.\n잠시 후 다시 시도해 주세요.');
+      setQuick([{label:'다시 시도', value:'__submit__'},{label:'처음부터', value:'__restart__'}]);
+    }
+  }
+
+  function handleUserInput(text, fromQuick){
+    var raw = String(text || '').trim();
+    if(!raw) return;
+
+    if(raw === '__close__'){ closeChat(); return; }
+    if(raw === '__restart__'){ reset(); return; }
+    if(raw === '__submit__'){ submit(); return; }
+
+    addMsg('user', raw);
+
+    if(state.step === 'name'){
+      state.data.name = raw;
+      state.step = 'phone';
+      addMsg('bot','좋아요, ' + state.data.name + '님!\n연락받을 휴대폰 번호를 입력해 주세요. (예: 01012345678)');
+      setQuick([]);
+      return;
+    }
+
+    if(state.step === 'phone'){
+      var p = normalizePhone(raw);
+      if(p.length < 10 || p.length > 11){
+        addMsg('bot','휴대폰 번호를 숫자만 10~11자리로 입력해 주세요.\n예: 01012345678');
+        return;
+      }
+      state.data.phone = p;
+      state.step = 'target';
+      addMsg('bot','마지막으로 수강 대상(학년/레벨)을 선택해 주세요.');
+      setQuick([
+        {label:'초등', value:'초등'},
+        {label:'중등', value:'중등'},
+        {label:'고등', value:'고등'},
+        {label:'성인/기타', value:'성인/기타'}
+      ]);
+      return;
+    }
+
+    if(state.step === 'target'){
+      state.data.target = raw;
+      state.step = 'consent';
+      addMsg('bot','개인정보 수집·이용에 동의하시면 접수할게요. (필수)');
+      setQuick([{label:'동의하고 접수', value:'__submit__'},{label:'처음부터', value:'__restart__'}]);
+      return;
+    }
+
+    if(state.step === 'consent'){
+      addMsg('bot','아래 버튼을 눌러 접수해 주세요.');
+      setQuick([{label:'동의하고 접수', value:'__submit__'},{label:'처음부터', value:'__restart__'}]);
+      return;
+    }
+
+    if(state.step === 'done'){
+      addMsg('bot','추가 문의가 있으면 “새로 신청”을 눌러주세요.');
+      setQuick([{label:'채팅 닫기', value:'__close__'},{label:'새로 신청', value:'__restart__'}]);
+      return;
+    }
+  }
+
+  // UI 이벤트 바인딩
+  fab.addEventListener('click', function(){ openChat(); });
+  btnClose.addEventListener('click', function(){ closeChat(); });
+  btnRestart.addEventListener('click', function(){ reset(); });
+
+  btnSend.addEventListener('click', function(){
+    var v = input.value;
+    input.value = '';
+    handleUserInput(v, false);
+  });
+  input.addEventListener('keydown', function(e){
+    if(e && e.key === 'Enter'){
+      e.preventDefault();
+      btnSend.click();
+    }
+  });
+
+  qsAll('.js-open-enroll-chat').forEach(function(a){
+    a.addEventListener('click', function(ev){
+      try{ ev.preventDefault(); }catch(_){}
+      openChat();
+    });
+  });
+
+  // 초기화
+  reset();
+})();
 </script> <!-- ======= End Course Registration Chat Widget ======= -->
 <a class="back-to-top d-flex align-items-center justify-content-center" href="#"><i class="bi bi-arrow-up-short"></i></a>
 <!-- Vendor JS Files -->
