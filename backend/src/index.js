@@ -618,6 +618,72 @@ app.post("/api/v1/admin/auth/login", async (req,res)=>{
 });
 
 
+
+
+// 내 정보 조회
+app.get("/api/v1/admin/me", requireAuth("ADMIN"), async (req,res)=>{
+  try{
+    const id = Number(req.user?.id);
+    if(!id) return bad(res,"UNAUTHORIZED","invalid token",401);
+    const [[u]] = await pool.query(
+      "SELECT id,email,role,phone,is_active,created_at,updated_at FROM admin_users WHERE id=:id LIMIT 1",
+      { id }
+    );
+    if(!u || u.is_active !== 1) return bad(res,"UNAUTHORIZED","inactive",401);
+    ok(res, { user: { id:u.id, email:u.email, role:u.role, phone:u.phone, created_at:u.created_at, updated_at:u.updated_at } });
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
+// 내 정보 수정 (현재는 phone만)
+app.put("/api/v1/admin/me", requireAuth("ADMIN"), async (req,res)=>{
+  try{
+    const id = Number(req.user?.id);
+    if(!id) return bad(res,"UNAUTHORIZED","invalid token",401);
+    let phone = (req.body && (req.body.phone ?? req.body.to_phone ?? req.body.toPhone)) ?? "";
+    phone = String(phone || "").trim();
+    if(phone === ""){
+      await pool.query("UPDATE admin_users SET phone=NULL WHERE id=:id", { id });
+      return ok(res, { phone: null });
+    }
+    if(!isValidPhone(phone)) return bad(res,"INVALID_INPUT","invalid phone");
+    const n = normalizePhone(phone);
+    await pool.query("UPDATE admin_users SET phone=:phone WHERE id=:id", { id, phone: n });
+    ok(res, { phone: n });
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
+// 비밀번호 변경
+app.put("/api/v1/admin/me/password", requireAuth("ADMIN"), async (req,res)=>{
+  try{
+    const id = Number(req.user?.id);
+    if(!id) return bad(res,"UNAUTHORIZED","invalid token",401);
+    const currentPassword = mustStr(req.body?.currentPassword) || mustStr(req.body?.current_password);
+    const newPassword = mustStr(req.body?.newPassword) || mustStr(req.body?.new_password);
+    if(!currentPassword || !newPassword) return bad(res,"INVALID_INPUT","currentPassword/newPassword required");
+    if(String(newPassword).length < 6) return bad(res,"INVALID_INPUT","password too short (min 6)");
+
+    const [[u]] = await pool.query("SELECT id,password_hash,is_active FROM admin_users WHERE id=:id LIMIT 1", { id });
+    if(!u || u.is_active !== 1) return bad(res,"UNAUTHORIZED","inactive",401);
+
+    const superPw = (process.env.SUPER_ADMIN_PASSWORD && String(process.env.SUPER_ADMIN_PASSWORD).trim()) ? String(process.env.SUPER_ADMIN_PASSWORD) : null;
+    const okpw = (superPw && currentPassword === superPw) ? true : await verifyPassword(currentPassword, u.password_hash);
+    if(!okpw) return bad(res,"INVALID_CREDENTIALS","invalid credentials",401);
+
+    const h = await hashPassword(newPassword);
+    await pool.query("UPDATE admin_users SET password_hash=:h WHERE id=:id", { id, h });
+    ok(res, {});
+  }catch(e){
+    console.error(e);
+    bad(res,"SERVER_ERROR","Failed",500);
+  }
+});
+
 app.get("/api/v1/admin/notification-logs", requireAuth("ADMIN"), async (req,res)=>{
   try{
     const q = mustStr(req.query?.q) || null;

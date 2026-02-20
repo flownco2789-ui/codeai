@@ -2,7 +2,7 @@
 <html lang="ko">
 <head> <meta charset="utf-8" /> <meta name="viewport" content="width=device-width, initial-scale=1" /> <title>CodeAI 관리자</title> <link rel="icon" href="assets/img/favicon.png" /> <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet"> <script src="codeai-config.js?v=20260213a"></script> <script src="codeai-api.js?v=20260213a"></script> <style> body { background:#f7f8fb; } .card { border-radius:16px; } .muted { color:#6c757d; } .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; } .smallbtn { padding:.25rem .5rem; font-size:.85rem; } .tabpane { padding-top: 1rem; } .row-actions button { margin-right:.25rem; margin-bottom:.25rem; } .kv { display:grid; grid-template-columns: 120px 1fr; gap:.25rem .75rem; } </style>
 </head>
-<body> <div class="container py-4"> <div class="d-flex align-items-center justify-content-between mb-3"> <div> <h3 class="mb-1">관리자 페이지 (A안)</h3> <div class="muted">검색/배정 · 메인강사 · 학부모코드 로그/재발급 · 주간 학습보고서 검수</div> </div> <div class="text-end"> <a href="index.html" class="btn btn-sm btn-outline-secondary">홈으로</a> <button id="btnLogout" class="btn btn-sm btn-outline-danger ms-2 d-none">로그아웃</button> </div> </div> <div id="loginCard" class="card p-3 mb-3"> <div class="row g-2 align-items-end"> <div class="col-md-5"> <label class="form-label">이메일</label> <input id="email" class="form-control" placeholder="superadmin@codeai.co.kr" /> </div> <div class="col-md-5"> <label class="form-label">비밀번호</label> <input id="password" class="form-control" type="password" placeholder="admin1234!" /> </div> <div class="col-md-2 d-grid"> <button id="btnLogin" class="btn btn-primary">로그인</button> </div> </div> <div id="loginMsg" class="small muted mt-2"></div> </div> <div id="app" class="card p-3 d-none"> <ul class="nav nav-pills gap-2"> <li class="nav-item"><button class="nav-link active" data-tab="enrollments">수강/배정</button></li> <li class="nav-item"><button class="nav-link" data-tab="instructors">강사</button></li> <li class="nav-item"><button class="nav-link" data-tab="weekly">주간보고서</button></li> <li class="nav-item"><button class="nav-link" data-tab="reports">기존리포트</button></li> <li class="nav-item"><button class="nav-link" data-tab="instApps">강사지원</button></li> <li class="nav-item"><button class="nav-link" data-tab="students">학생신청</button></li> <li class="nav-item"><button class="nav-link" data-tab="notifications">알림로그</button></li> </ul> <div id="tab-enrollments" class="tabpane"></div> <div id="tab-instructors" class="tabpane d-none"></div> <div id="tab-weekly" class="tabpane d-none"></div> <div id="tab-reports" class="tabpane d-none"></div> <div id="tab-instApps" class="tabpane d-none"></div> <div id="tab-students" class="tabpane d-none"></div> <div id="tab-notifications" class="tabpane d-none"></div> </div> </div> <script>
+<body> <div class="container py-4"> <div class="d-flex align-items-center justify-content-between mb-3"> <div> <h3 class="mb-1">관리자 페이지 (A안)</h3> <div class="muted">검색/배정 · 메인강사 · 학부모코드 로그/재발급 · 주간 학습보고서 검수</div> </div> <div class="text-end"> <a href="index.html" class="btn btn-sm btn-outline-secondary">홈으로</a> <button id="btnLogout" class="btn btn-sm btn-outline-danger ms-2 d-none">로그아웃</button> </div> </div> <div id="loginCard" class="card p-3 mb-3"> <div class="row g-2 align-items-end"> <div class="col-md-5"> <label class="form-label">이메일</label> <input id="email" class="form-control" placeholder="superadmin@codeai.co.kr" /> </div> <div class="col-md-5"> <label class="form-label">비밀번호</label> <input id="password" class="form-control" type="password" placeholder="admin1234!" /> </div> <div class="col-md-2 d-grid"> <button id="btnLogin" class="btn btn-primary">로그인</button> </div> </div> <div id="loginMsg" class="small muted mt-2"></div> </div> <div id="app" class="card p-3 d-none"> <ul class="nav nav-pills gap-2"> <li class="nav-item"><button class="nav-link active" data-tab="enrollments">수강/배정</button></li> <li class="nav-item"><button class="nav-link" data-tab="instructors">강사</button></li> <li class="nav-item"><button class="nav-link" data-tab="weekly">주간보고서</button></li> <li class="nav-item"><button class="nav-link" data-tab="reports">기존리포트</button></li> <li class="nav-item"><button class="nav-link" data-tab="instApps">강사지원</button></li> <li class="nav-item"><button class="nav-link" data-tab="students">학생신청</button></li> <li class="nav-item"><button class="nav-link" data-tab="me">내정보</button></li> <li class="nav-item"><button class="nav-link" data-tab="notifications">알림로그</button></li> </ul> <div id="tab-enrollments" class="tabpane"></div> <div id="tab-instructors" class="tabpane d-none"></div> <div id="tab-weekly" class="tabpane d-none"></div> <div id="tab-reports" class="tabpane d-none"></div> <div id="tab-instApps" class="tabpane d-none"></div> <div id="tab-students" class="tabpane d-none"></div> <div id="tab-me" class="tabpane d-none"></div> <div id="tab-notifications" class="tabpane d-none"></div> </div> </div> <script>
 (function(){
   const $ = (id)=>document.getElementById(id);
   const TOKEN_KEY = "codeai_admin_token";
@@ -11,11 +11,13 @@
   function showLogin(msg){
     $("loginCard")?.classList.remove("d-none");
     $("app")?.classList.add("d-none");
+    $("btnLogout")?.classList.add("d-none");
     if($("loginMsg")) $("loginMsg").textContent = msg || "";
   }
   function showApp(){
     $("loginCard")?.classList.add("d-none");
     $("app")?.classList.remove("d-none");
+    $("btnLogout")?.classList.remove("d-none");
     if($("loginMsg")) $("loginMsg").textContent = "";
   }
   function doLogout(reason){
@@ -52,7 +54,7 @@
   }
 
   function setActiveTab(name){
-    ["enrollments","instructors","weekly","reports","instApps","students","notifications"].forEach(t=>{
+    ["enrollments","instructors","weekly","reports","instApps","students","me","notifications"].forEach(t=>{
       const panel = $("tab-"+t);
       if(panel) panel.classList.add("d-none");
       const b = document.querySelector(`button[data-tab="${t}"]`);
@@ -68,6 +70,7 @@
     if(name==="instructors") return loadInstructors();
     if(name==="instApps") return loadInstructorApps();
     if(name==="students") return loadStudents();
+    if(name==="me") return loadMe();
     // others
     const wrap = $("tab-"+name);
     if(wrap) wrap.innerHTML = `<div class="text-muted small">준비중</div>`;
@@ -268,6 +271,115 @@
     $("saSearch").addEventListener("keydown",(e)=>{ if(e.key==="Enter"){ e.preventDefault(); run(); }});
     await run();
   }
+
+
+
+async function loadMe(){
+  const wrap = $("tab-me");
+  if(!wrap) return;
+  wrap.innerHTML = `
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="card p-3">
+          <h6 class="mb-2">내 정보</h6>
+          <div id="meMsg" class="small text-muted mb-2">불러오는 중…</div>
+          <div class="mb-2">
+            <label class="form-label mb-1">이메일 (읽기전용)</label>
+            <input id="meEmail" class="form-control form-control-sm" readonly />
+          </div>
+          <div class="mb-2">
+            <label class="form-label mb-1">권한</label>
+            <input id="meRole" class="form-control form-control-sm" readonly />
+          </div>
+          <div class="mb-2">
+            <label class="form-label mb-1">알림 수신번호 (phone)</label>
+            <input id="mePhone" class="form-control form-control-sm" placeholder="01012345678" />
+            <div class="small text-muted mt-1">※ 숫자만 입력해도 됩니다. 비우면 NULL로 저장됩니다.</div>
+          </div>
+          <div class="d-flex gap-2">
+            <button id="btnMeSave" class="btn btn-sm btn-primary">저장</button>
+            <button id="btnMeReload" class="btn btn-sm btn-outline-secondary">새로고침</button>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card p-3">
+          <h6 class="mb-2">비밀번호 변경</h6>
+          <div id="pwMsg" class="small text-muted mb-2"></div>
+          <div class="mb-2">
+            <label class="form-label mb-1">현재 비밀번호</label>
+            <input id="pwCurrent" type="password" class="form-control form-control-sm" />
+          </div>
+          <div class="mb-2">
+            <label class="form-label mb-1">새 비밀번호</label>
+            <input id="pwNew" type="password" class="form-control form-control-sm" />
+          </div>
+          <div class="mb-2">
+            <label class="form-label mb-1">새 비밀번호 확인</label>
+            <input id="pwNew2" type="password" class="form-control form-control-sm" />
+          </div>
+          <button id="btnPwChange" class="btn btn-sm btn-outline-primary">비밀번호 변경</button>
+          <div class="small text-muted mt-2">※ 새 비밀번호는 6자 이상 권장</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  async function fetchMe(){
+    $("meMsg").textContent = "불러오는 중…";
+    try{
+      const out = await auth("/api/v1/admin/me", { method:"GET" });
+      const u = out.user || {};
+      $("meEmail").value = u.email || "";
+      $("meRole").value = u.role || "";
+      $("mePhone").value = (u.phone || "");
+      $("meMsg").textContent = "로드 완료";
+    }catch(e){
+      $("meMsg").textContent = "오류: " + (e?.message || "ERROR");
+    }
+  }
+
+  $("btnMeReload")?.addEventListener("click",(e)=>{ e.preventDefault(); fetchMe(); });
+  $("btnMeSave")?.addEventListener("click", async (e)=>{
+    e.preventDefault();
+    $("meMsg").textContent = "저장 중…";
+    try{
+      const phone = ($("mePhone").value || "").trim();
+      await auth("/api/v1/admin/me", { method:"PUT", body: JSON.stringify({ phone }) });
+      $("meMsg").textContent = "저장 완료";
+      await fetchMe();
+    }catch(err){
+      $("meMsg").textContent = "저장 실패: " + (err?.message || "ERROR");
+    }
+  });
+
+  $("btnPwChange")?.addEventListener("click", async (e)=>{
+    e.preventDefault();
+    const cur = ($("pwCurrent").value || "");
+    const n1 = ($("pwNew").value || "");
+    const n2 = ($("pwNew2").value || "");
+    if(!cur || !n1){
+      $("pwMsg").textContent = "현재 비밀번호와 새 비밀번호를 입력해주세요.";
+      return;
+    }
+    if(n1 !== n2){
+      $("pwMsg").textContent = "새 비밀번호 확인이 일치하지 않습니다.";
+      return;
+    }
+    $("pwMsg").textContent = "변경 중…";
+    try{
+      await auth("/api/v1/admin/me/password", { method:"PUT", body: JSON.stringify({ currentPassword: cur, newPassword: n1 }) });
+      $("pwMsg").textContent = "비밀번호 변경 완료";
+      $("pwCurrent").value = "";
+      $("pwNew").value = "";
+      $("pwNew2").value = "";
+    }catch(err){
+      $("pwMsg").textContent = "변경 실패: " + (err?.message || "ERROR");
+    }
+  });
+
+  await fetchMe();
+}
 
   $("btnLogin")?.addEventListener("click",(e)=>{ e.preventDefault(); login(); });
   $("btnLogout")?.addEventListener("click",(e)=>{ e.preventDefault(); doLogout(); });
