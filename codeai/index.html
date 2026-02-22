@@ -562,7 +562,7 @@
 <div id="enroll"></div> <!-- ======= Course Registration Chat Widget (Main Page) ======= -->
 <style> .codeai-chat-fab{ position:fixed; right:15px; bottom:calc(75px + env(safe-area-inset-bottom, 0px)); width:58px; height:58px; border-radius:999px; border:none; cursor:pointer; background:#68A4C4; color:#fff; box-shadow:0 12px 30px rgba(30,67,86,.25); z-index:100000; display:flex; align-items:center; justify-content:center; gap:8px; padding:0 14px; } .codeai-chat-fab.hide{ display:none; } .codeai-chat-fab .label{ font-weight:800; font-size:13px; letter-spacing:-.2px; display:none; } .codeai-chat-fab i{ font-size:22px; line-height:0; } .codeai-chat-widget{ position:fixed; right:15px; bottom:calc(145px + env(safe-area-inset-bottom, 0px)); width:min(380px, calc(100vw - 30px)); height:min(560px, calc(100vh - 170px));
     height:min(560px, calc(100dvh - 170px));
-    max-height:min(560px, calc(100dvh - 170px)); background:#fff; border-radius:16px; box-shadow:0 18px 50px rgba(0,0,0,.18); overflow:hidden; z-index:100000; display:none; flex-direction:column; } .codeai-chat-widget.open{ display:flex; } .codeai-chat-header{ background:#1e4356; color:#fff; padding:12px 14px; display:flex; align-items:center; justify-content:space-between; gap:10px; } .codeai-chat-title{ display:flex; align-items:center; gap:10px; min-width:0; } .codeai-chat-title .badge{ background:rgba(255,255,255,.14); padding:4px 8px; border-radius:999px; font-size:12px; white-space:nowrap; } .codeai-chat-title .t1{ font-weight:800; letter-spacing:-.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .codeai-chat-actions{ display:flex; align-items:center; gap:8px; } .codeai-chat-actions button{ width:32px; height:32px; border-radius:10px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.12); color:#fff; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; } .codeai-chat-actions button:hover{ background:rgba(255,255,255,.20); } .codeai-chat-body{ flex:1; padding:14px 12px; overflow:auto; background:linear-gradient(180deg, #f7fbff 0%, #ffffff 40%); display:flex; flex-direction:column-reverse; } .codeai-msg{ display:flex; margin:10px 0; } .codeai-msg.bot{ justify-content:flex-start; } .codeai-msg.user{ justify-content:flex-end; } .codeai-bubble{ max-width:82%; padding:10px 12px; border-radius:14px; font-size:14px; line-height:1.45; box-shadow:0 8px 18px rgba(0,0,0,.06); word-break:break-word; } .codeai-msg.bot .codeai-bubble{ background:#fff; border:1px solid rgba(104,164,196,.18); } .codeai-msg.user .codeai-bubble{ background:#68A4C4; color:#fff; border:1px solid rgba(104,164,196,.1); } .codeai-quick{ padding:10px 12px 0 12px; display:flex; flex-wrap:wrap; gap:8px; background:#fff; border-top:1px solid rgba(0,0,0,.06); } .codeai-quick button{ border:1px solid rgba(30,67,86,.16); background:#fff; color:#1e4356; border-radius:999px; padding:8px 10px; font-size:13px; cursor:pointer; } 
+    max-height:min(560px, calc(100dvh - 170px)); background:#fff; border-radius:16px; box-shadow:0 18px 50px rgba(0,0,0,.18); overflow:hidden; z-index:100000; display:none; flex-direction:column; } .codeai-chat-widget.open{ display:flex; } .codeai-chat-header{ background:#1e4356; color:#fff; padding:12px 14px; display:flex; align-items:center; justify-content:space-between; gap:10px; } .codeai-chat-title{ display:flex; align-items:center; gap:10px; min-width:0; } .codeai-chat-title .badge{ background:rgba(255,255,255,.14); padding:4px 8px; border-radius:999px; font-size:12px; white-space:nowrap; } .codeai-chat-title .t1{ font-weight:800; letter-spacing:-.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .codeai-chat-actions{ display:flex; align-items:center; gap:8px; } .codeai-chat-actions button{ width:32px; height:32px; border-radius:10px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.12); color:#fff; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; } .codeai-chat-actions button:hover{ background:rgba(255,255,255,.20); } .codeai-chat-body{display:flex; flex-direction:column; justify-content:flex-end; flex:1; padding:14px 12px; overflow:auto; background:linear-gradient(180deg, #f7fbff 0%, #ffffff 40%);} .codeai-msg{ display:flex; margin:10px 0; } .codeai-msg.bot{ justify-content:flex-start; } .codeai-msg.user{ justify-content:flex-end; } .codeai-bubble{ max-width:82%; padding:10px 12px; border-radius:14px; font-size:14px; line-height:1.45; box-shadow:0 8px 18px rgba(0,0,0,.06); word-break:break-word; } .codeai-msg.bot .codeai-bubble{ background:#fff; border:1px solid rgba(104,164,196,.18); } .codeai-msg.user .codeai-bubble{ background:#68A4C4; color:#fff; border:1px solid rgba(104,164,196,.1); } .codeai-quick{ padding:10px 12px 0 12px; display:flex; flex-wrap:wrap; gap:8px; background:#fff; border-top:1px solid rgba(0,0,0,.06); } .codeai-quick button{ border:1px solid rgba(30,67,86,.16); background:#fff; color:#1e4356; border-radius:999px; padding:8px 10px; font-size:13px; cursor:pointer; } 
 /* quick button variants */
 .codeai-quick-btn{ border:1px solid rgba(30,67,86,.16); background:#fff; color:#1e4356; border-radius:999px; padding:9px 12px; font-size:13px; cursor:pointer; }
 .codeai-quick-btn:hover{ background:rgba(104,164,196,.10); }
@@ -639,20 +639,17 @@
   }
 
   function scrollBottom(){
-    // NOTE: .codeai-chat-body uses flex-direction:column-reverse for bottom-up chat.
-    // In that mode, scrollTop=0 represents the visual bottom.
-    try{ body.scrollTop = 0; }catch(_){}
+    try{ body.scrollTop = body.scrollHeight; }catch(_){}
   }
 
-  function addMsg(role, text){
+function addMsg(role, text){
     var wrap = document.createElement('div');
     wrap.className = 'codeai-msg ' + (role === 'user' ? 'user' : 'bot');
     var bubble = document.createElement('div');
     bubble.className = 'codeai-bubble';
     bubble.innerHTML = escapeHtml(text).replace(/\r?\n/g,'<br/>');
     wrap.appendChild(bubble);
-    // With column-reverse, prepend so the newest message stays at the visual bottom.
-    body.prepend(wrap);
+    body.appendChild(wrap);
     scrollBottom();
   }
 

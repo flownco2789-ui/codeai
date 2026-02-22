@@ -74,7 +74,41 @@ const db = pool; // alias for legacy code
 
 
 const PORT = Number(process.env.PORT || "8080");
-const allowedOrigins = String(process.env.ALLOWED_ORIGINS || "").split(",").map(s => s.trim()).filter(Boolean);
+const envAllowedOrigins = String(process.env.ALLOWED_ORIGINS || "").split(",").map(s => s.trim()).filter(Boolean);
+// Always allow the production site origins by default (prevents CORS misconfig from breaking admin/instructor logins).
+const baseAllowedOrigins = [
+  "https://www.codeai.co.kr",
+  "https://codeai.co.kr",
+];
+const allowedOrigins = Array.from(new Set([...envAllowedOrigins, ...baseAllowedOrigins]));
+const allowedHosts = Array.from(new Set(allowedOrigins.map(o => {
+  try { return new URL(o).hostname; } catch { return null; }
+}).filter(Boolean)));
+function isOriginAllowed(origin){
+  if(!origin) return true; // curl/postman/non-browser
+  try {
+    const u = new URL(origin);
+    const host = u.hostname;
+    // local dev
+    if(host === "localhost" || host === "127.0.0.1" || host === "::1" || host.endsWith(".localhost")) return true;
+    // production domains
+    if(host === "codeai.co.kr" || host.endsWith(".codeai.co.kr")) return true;
+    // explicit allowlist
+    if(allowedOrigins.includes(origin)) return true;
+    if(allowedHosts.includes(host)) return true;
+    return false;
+  } catch (e) {
+    return allowedOrigins.includes(origin);
+  }
+}
+const corsOptions = {
+  origin: (origin, cb) => cb(null, isOriginAllowed(origin)),
+  credentials: false,
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 const API_PUBLIC_BASE = String(process.env.API_PUBLIC_BASE || "").replace(/\/+$/g,"") || null;
 
 app.set("trust proxy", 1);
@@ -82,14 +116,6 @@ app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(morgan("combined"));
 app.use(rateLimit({ windowMs: 60_000, max: 300 }));
 
-app.use(cors({
-  origin: function(origin, cb){
-    if(!origin) return cb(null, true);
-    if(allowedOrigins.length === 0) return cb(null, true);
-    return cb(null, allowedOrigins.includes(origin));
-  },
-  credentials: false
-}));
 
 // Some browsers/clients may send JSON with a non-standard Content-Type (e.g. text/plain)
 // if headers are accidentally dropped/overwritten on the frontend.
