@@ -546,46 +546,98 @@ app.post("/api/v1/public/instructor-applications", upload.single("photo"), async
   }
 });
 
-// Legacy compatibility (student enroll v1 -> v2 proxy)
-app.post("/api/v1/applications/enroll", async (req,res)=>{
-  // map old fields to new and forward logic
-  req.body = {
-    name: req.body?.name,
-    phone: req.body?.phone,
-    subjects: req.body?.subjects || [req.body?.subject].filter(Boolean),
-    target: req.body?.target || null,
-    mode: req.body?.mode || "ZOOM",
-    region: req.body?.region || null,
-    note: req.body?.note || null
-  };
-  return app._router.handle(req, res, ()=>{}, "post", "/api/v1/public/student-applications");
-});
-// Legacy compatibility (v1: /api/v1/applications/enroll)
+// Legacy compatibility: /api/v1/applications/enroll
+// - Keeps old clients working
+// - Routes to the V2 handler shape used by /api/v1/public/student-applications
 app.post("/api/v1/applications/enroll", async (req,res)=>{
   try{
+    // Accept older payloads that only include name/phone/target
     const name = mustStr(req.body?.name);
     const phone = mustStr(req.body?.phone);
     const target = mustStr(req.body?.target) || null;
     const note = mustStr(req.body?.note) || null;
-    const subjects = jsonArr(req.body?.subjects || req.body?.subject || []).map(s=>String(s).trim()).filter(Boolean).slice(0,5);
-    const mode = "ZOOM"; // v1 default
-    const region = null;
+    // subjects may be missing in older UI; default to "Python" so we don't hard-fail
+    const subjects = jsonArr(req.body?.subjects || [req.body?.subject].filter(Boolean) || [])
+      .map(s=>String(s).trim()).filter(Boolean).slice(0,5);
+    const mode = (mustStr(req.body?.mode) || "ZOOM").trim();
+    const region = mustStr(req.body?.region) || null;
+    const preferredInstructorTypeRaw = mustStr(req.body?.preferredInstructorType) || mustStr(req.body?.preferred_instructor_type) || null;
+    const preferredInstructorType = (preferredInstructorTypeRaw && preferredInstructorTypeRaw.trim()) ? preferredInstructorTypeRaw.trim() : "ANY";
 
     if(!name) return bad(res,"INVALID_NAME","name required");
     if(!phone || !isValidPhone(phone)) return bad(res,"INVALID_PHONE","phone invalid");
-    if(!subjects.length) return bad(res,"INVALID_SUBJECTS","subjects required");
+
+    const finalSubjects = subjects.length ? subjects : ["Python"]; // safe default
+    const finalMode = (["ZOOM","OFFLINE_1_1","OFFLINE_GROUP"].includes(mode) ? mode : "ZOOM");
+    if(finalMode !== "ZOOM" && (!region || !String(region).trim())){
+      return bad(res,"INVALID_REGION","region required for offline mode");
+    }
 
     const [r] = await pool.query(
       "INSERT INTO student_applications (name,phone,subjects,target,mode,region,preferred_instructor_type,note,status) VALUES (:name,:phone,:subjects,:target,:mode,:region,:preferred_instructor_type,:note,'SUBMITTED')",
-      { name, phone: formatPhone(phone), subjects: JSON.stringify(subjects), target, mode, region, preferred_instructor_type: preferredInstructorType, note }
+      {
+        name,
+        phone: formatPhone(phone),
+        subjects: JSON.stringify(finalSubjects),
+        target,
+        mode: finalMode,
+        region: finalMode === "ZOOM" ? null : region,
+        preferred_instructor_type: preferredInstructorType,
+        note
+      }
     );
     const id = r.insertId;
 
     await notifyAdminsByRoles(pool, ["SUPER_ADMIN","SUB_ADMIN","STUDENT_ADMIN"], "STUDENT_APPLICATION_CREATED", {
-      id, name, phone: formatPhone(phone), subjects, target, mode, region, preferredInstructorType
+      id, name, phone: formatPhone(phone), subjects: finalSubjects, target, mode: finalMode, region: finalMode === "ZOOM" ? null : region, preferredInstructorType
     });
 
-    ok(res, { id });
+    // Send alimtalk best-effort (same template as V2)
+    try{
+      const applyContent = [
+        finalSubjects?.length ? `과목: ${finalSubjects.join(", ")}` : null,
+        target ? `대상: ${target}` : null,
+        finalMode ? `수업형태: ${finalMode}` : null,
+        (finalMode && finalMode !== "ZOOM" && region) ? `지역: ${region}` : null,
+        preferredInstructorType ? `선호강사유형: ${preferredInstructorType}` : null,
+        note ? `메모: ${note}` : null
+      ].filter(Boolean).join("\n");
+
+      const message = buildApplyCompletedMessage({ customerName: name, applyContent });
+      await sendAlimtalk(pool, {
+        toPhone: phone,
+        toName: name,
+        eventType: "STUDENT_APPLY_CONFIRMED",
+        payload: { id, name, phone: formatPhone(phone), subjects: finalSubjects, target, mode: finalMode, region, preferredInstructorType },
+        tplCode: ALIGO_TPL_APPLY,
+        subject: "신청완료안내",
+        message
+      });
+
+      if(ADMISSION_NOTIFY_PHONES.length){
+        const adminApplyContent = [
+          `고객명: ${name}`,
+          `연락처: ${formatPhone(phone)}`,
+          applyContent
+        ].filter(Boolean).join("\n");
+        const adminMessage = buildApplyCompletedMessage({ customerName: "입학관리 담당자", applyContent: adminApplyContent });
+        for(const adminPhone of ADMISSION_NOTIFY_PHONES){
+          await sendAlimtalk(pool, {
+            toPhone: adminPhone,
+            toName: "입학관리 담당자",
+            eventType: "STUDENT_APPLY_CONFIRMED_ADMIN",
+            payload: { id, applicantName: name, applicantPhone: formatPhone(phone), subjects: finalSubjects, target, mode: finalMode, region, preferredInstructorType },
+            tplCode: ALIGO_TPL_APPLY,
+            subject: "신청완료안내",
+            message: adminMessage
+          });
+        }
+      }
+    }catch(e){
+      console.error("Alimtalk student-apply (legacy) confirm failed:", e?.message || e);
+    }
+
+    ok(res, { ok:true, studentApplication: { id } });
   }catch(e){
     console.error(e);
     bad(res,"SERVER_ERROR","Failed to create application",500);

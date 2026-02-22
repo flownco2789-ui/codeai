@@ -562,7 +562,16 @@
 <div id="enroll"></div> <!-- ======= Course Registration Chat Widget (Main Page) ======= -->
 <style> .codeai-chat-fab{ position:fixed; right:15px; bottom:calc(75px + env(safe-area-inset-bottom, 0px)); width:58px; height:58px; border-radius:999px; border:none; cursor:pointer; background:#68A4C4; color:#fff; box-shadow:0 12px 30px rgba(30,67,86,.25); z-index:100000; display:flex; align-items:center; justify-content:center; gap:8px; padding:0 14px; } .codeai-chat-fab.hide{ display:none; } .codeai-chat-fab .label{ font-weight:800; font-size:13px; letter-spacing:-.2px; display:none; } .codeai-chat-fab i{ font-size:22px; line-height:0; } .codeai-chat-widget{ position:fixed; right:15px; bottom:calc(145px + env(safe-area-inset-bottom, 0px)); width:min(380px, calc(100vw - 30px)); height:min(560px, calc(100vh - 170px));
     height:min(560px, calc(100dvh - 170px));
-    max-height:min(560px, calc(100dvh - 170px)); background:#fff; border-radius:16px; box-shadow:0 18px 50px rgba(0,0,0,.18); overflow:hidden; z-index:100000; display:none; flex-direction:column; } .codeai-chat-widget.open{ display:flex; } .codeai-chat-header{ background:#1e4356; color:#fff; padding:12px 14px; display:flex; align-items:center; justify-content:space-between; gap:10px; } .codeai-chat-title{ display:flex; align-items:center; gap:10px; min-width:0; } .codeai-chat-title .badge{ background:rgba(255,255,255,.14); padding:4px 8px; border-radius:999px; font-size:12px; white-space:nowrap; } .codeai-chat-title .t1{ font-weight:800; letter-spacing:-.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .codeai-chat-actions{ display:flex; align-items:center; gap:8px; } .codeai-chat-actions button{ width:32px; height:32px; border-radius:10px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.12); color:#fff; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; } .codeai-chat-actions button:hover{ background:rgba(255,255,255,.20); } .codeai-chat-body{ flex:1; padding:14px 12px; overflow:auto; background:linear-gradient(180deg, #f7fbff 0%, #ffffff 40%); } .codeai-msg{ display:flex; margin:10px 0; } .codeai-msg.bot{ justify-content:flex-start; } .codeai-msg.user{ justify-content:flex-end; } .codeai-bubble{ max-width:82%; padding:10px 12px; border-radius:14px; font-size:14px; line-height:1.45; box-shadow:0 8px 18px rgba(0,0,0,.06); word-break:break-word; } .codeai-msg.bot .codeai-bubble{ background:#fff; border:1px solid rgba(104,164,196,.18); } .codeai-msg.user .codeai-bubble{ background:#68A4C4; color:#fff; border:1px solid rgba(104,164,196,.1); } .codeai-quick{ padding:10px 12px 0 12px; display:flex; flex-wrap:wrap; gap:8px; background:#fff; border-top:1px solid rgba(0,0,0,.06); } .codeai-quick button{ border:1px solid rgba(30,67,86,.16); background:#fff; color:#1e4356; border-radius:999px; padding:8px 10px; font-size:13px; cursor:pointer; } .codeai-quick button:hover{ background:rgba(104,164,196,.10); } .codeai-chat-input{ display:flex; gap:8px; padding:10px 12px 12px 12px; background:#fff; border-top:1px solid rgba(0,0,0,.06); } .codeai-chat-input input{ flex:1; border:1px solid rgba(0,0,0,.14); border-radius:12px; padding:10px 12px; font-size:14px; outline:none; } .codeai-chat-input input:focus{ border-color:rgba(104,164,196,.65); box-shadow:0 0 0 3px rgba(104,164,196,.18); } .codeai-chat-input button{ border:none; border-radius:12px; padding:0 14px; background:#1e4356; color:#fff; font-weight:800; cursor:pointer; min-width:74px; } .codeai-chat-input button:disabled{ opacity:.5; cursor:not-allowed; } @media (min-width: 768px){ .codeai-chat-fab{ width:auto; } .codeai-chat-fab.hide{ display:none; } .codeai-chat-fab .label{ display:inline; } }
+    max-height:min(560px, calc(100dvh - 170px)); background:#fff; border-radius:16px; box-shadow:0 18px 50px rgba(0,0,0,.18); overflow:hidden; z-index:100000; display:none; flex-direction:column; } .codeai-chat-widget.open{ display:flex; } .codeai-chat-header{ background:#1e4356; color:#fff; padding:12px 14px; display:flex; align-items:center; justify-content:space-between; gap:10px; } .codeai-chat-title{ display:flex; align-items:center; gap:10px; min-width:0; } .codeai-chat-title .badge{ background:rgba(255,255,255,.14); padding:4px 8px; border-radius:999px; font-size:12px; white-space:nowrap; } .codeai-chat-title .t1{ font-weight:800; letter-spacing:-.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .codeai-chat-actions{ display:flex; align-items:center; gap:8px; } .codeai-chat-actions button{ width:32px; height:32px; border-radius:10px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.12); color:#fff; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; } .codeai-chat-actions button:hover{ background:rgba(255,255,255,.20); } .codeai-chat-body{ flex:1; padding:14px 12px; overflow:auto; background:linear-gradient(180deg, #f7fbff 0%, #ffffff 40%); display:flex; flex-direction:column-reverse; } .codeai-msg{ display:flex; margin:10px 0; } .codeai-msg.bot{ justify-content:flex-start; } .codeai-msg.user{ justify-content:flex-end; } .codeai-bubble{ max-width:82%; padding:10px 12px; border-radius:14px; font-size:14px; line-height:1.45; box-shadow:0 8px 18px rgba(0,0,0,.06); word-break:break-word; } .codeai-msg.bot .codeai-bubble{ background:#fff; border:1px solid rgba(104,164,196,.18); } .codeai-msg.user .codeai-bubble{ background:#68A4C4; color:#fff; border:1px solid rgba(104,164,196,.1); } .codeai-quick{ padding:10px 12px 0 12px; display:flex; flex-wrap:wrap; gap:8px; background:#fff; border-top:1px solid rgba(0,0,0,.06); } .codeai-quick button{ border:1px solid rgba(30,67,86,.16); background:#fff; color:#1e4356; border-radius:999px; padding:8px 10px; font-size:13px; cursor:pointer; } 
+/* quick button variants */
+.codeai-quick-btn{ border:1px solid rgba(30,67,86,.16); background:#fff; color:#1e4356; border-radius:999px; padding:9px 12px; font-size:13px; cursor:pointer; }
+.codeai-quick-btn:hover{ background:rgba(104,164,196,.10); }
+.codeai-quick-btn.primary{ background:#1e4356; color:#fff; border-color:rgba(30,67,86,.12); }
+.codeai-quick-btn.primary:hover{ filter:brightness(1.05); }
+.codeai-quick-btn.secondary{ background:#ffffff; color:#1e4356; border-color:rgba(0,0,0,.18); }
+.codeai-quick-btn.danger{ background:#dc3545; color:#fff; border-color:rgba(220,53,69,.25); }
+.codeai-quick-btn.danger:hover{ filter:brightness(1.03); }
+.codeai-quick button:hover{ background:rgba(104,164,196,.10); } .codeai-chat-input{ display:flex; gap:8px; padding:10px 12px 12px 12px; background:#fff; border-top:1px solid rgba(0,0,0,.06); } .codeai-chat-input input{ flex:1; border:1px solid rgba(0,0,0,.14); border-radius:12px; padding:10px 12px; font-size:14px; outline:none; } .codeai-chat-input input:focus{ border-color:rgba(104,164,196,.65); box-shadow:0 0 0 3px rgba(104,164,196,.18); } .codeai-chat-input button{ border:none; border-radius:12px; padding:0 14px; background:#1e4356; color:#fff; font-weight:800; cursor:pointer; min-width:74px; } .codeai-chat-input button:disabled{ opacity:.5; cursor:not-allowed; } @media (min-width: 768px){ .codeai-chat-fab{ width:auto; } .codeai-chat-fab.hide{ display:none; } .codeai-chat-fab .label{ display:inline; } }
 
   @media (max-width: 576px){
     .codeai-chat-fab{
@@ -602,6 +611,7 @@
 </div>
 </div>
 <script>
+
 (function(){
   'use strict';
 
@@ -615,46 +625,49 @@
   var btnSend = document.getElementById('codeaiChatSend');
 
   if(!fab || !widget || !btnClose || !btnRestart || !body || !quick || !input || !btnSend){
-    return; // DOM이 예상과 다르면 조용히 종료
+    return;
   }
 
-  function qsAll(sel){ try{ return Array.prototype.slice.call(document.querySelectorAll(sel)); }catch(_){ return []; } }
+  function qsAll(sel){
+    try{ return Array.prototype.slice.call(document.querySelectorAll(sel)); }catch(_){ return []; }
+  }
 
-  function openChat(){
-    widget.classList.add('open');
-    widget.setAttribute('aria-modal','true');
-    try{ input.focus(); }catch(_){}
-  }
-  function closeChat(){
-    widget.classList.remove('open');
-    widget.setAttribute('aria-modal','false');
-  }
-  function scrollBottom(){
-    try{ body.scrollTop = body.scrollHeight; }catch(_){}
-  }
   function escapeHtml(s){
     return String(s || '').replace(/[&<>"']/g, function(ch){
       return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]);
     });
   }
+
+  function scrollBottom(){
+    // NOTE: .codeai-chat-body uses flex-direction:column-reverse for bottom-up chat.
+    // In that mode, scrollTop=0 represents the visual bottom.
+    try{ body.scrollTop = 0; }catch(_){}
+  }
+
   function addMsg(role, text){
     var wrap = document.createElement('div');
     wrap.className = 'codeai-msg ' + (role === 'user' ? 'user' : 'bot');
     var bubble = document.createElement('div');
     bubble.className = 'codeai-bubble';
-    bubble.innerHTML = escapeHtml(text).replace(/\r?\n/g, '<br/>');
+    bubble.innerHTML = escapeHtml(text).replace(/\r?\n/g,'<br/>');
     wrap.appendChild(bubble);
-    body.appendChild(wrap);
+    // With column-reverse, prepend so the newest message stays at the visual bottom.
+    body.prepend(wrap);
     scrollBottom();
   }
+
   function setQuick(options){
-    // options: [{label, value}]
     quick.innerHTML = '';
     if(!options || !options.length) return;
     options.forEach(function(opt){
       var b = document.createElement('button');
       b.type = 'button';
-      b.className = 'codeai-quick-btn';
+      var v = (opt && opt.value != null) ? String(opt.value) : '';
+      var cls = 'codeai-quick-btn';
+      if(v === '__submit__') cls += ' primary';
+      else if(v === '__restart__') cls += ' danger';
+      else if(v === '__close__') cls += ' secondary';
+      b.className = cls;
       b.textContent = opt.label;
       b.addEventListener('click', function(){
         handleUserInput(opt.value != null ? opt.value : opt.label, true);
@@ -663,6 +676,59 @@
     });
   }
 
+  function normalizePhone(s){
+    return String(s||'').replace(/[^0-9]/g,'');
+  }
+
+  // --- Mobile keyboard safe resize (visualViewport) ---
+  var viewportApplied = false;
+  function applyMobileViewportFix(){
+    var vv = window.visualViewport;
+    if(!vv) return;
+    if(window.matchMedia && window.matchMedia('(max-width: 576px)').matches){
+      var pad = 12;
+      widget.style.top = (vv.offsetTop + pad) + 'px';
+      widget.style.left = pad + 'px';
+      widget.style.right = pad + 'px';
+      widget.style.bottom = 'auto';
+      widget.style.height = Math.max(260, vv.height - pad*2) + 'px';
+      widget.style.maxHeight = widget.style.height;
+      viewportApplied = true;
+    }
+  }
+  function clearMobileViewportFix(){
+    if(!viewportApplied) return;
+    widget.style.top = '';
+    widget.style.left = '';
+    widget.style.right = '';
+    widget.style.bottom = '';
+    widget.style.height = '';
+    widget.style.maxHeight = '';
+    viewportApplied = false;
+  }
+  function bindViewport(){
+    var vv = window.visualViewport;
+    if(!vv || vv.__codeaiBound) return;
+    vv.__codeaiBound = true;
+    vv.addEventListener('resize', function(){ if(widget.classList.contains('open')) applyMobileViewportFix(); });
+    vv.addEventListener('scroll', function(){ if(widget.classList.contains('open')) applyMobileViewportFix(); });
+  }
+
+  function openChat(){
+    widget.classList.add('open');
+    widget.setAttribute('aria-modal','true');
+    bindViewport();
+    applyMobileViewportFix();
+    try{ input.focus(); }catch(_){}
+    scrollBottom();
+  }
+  function closeChat(){
+    widget.classList.remove('open');
+    widget.setAttribute('aria-modal','false');
+    clearMobileViewportFix();
+  }
+
+  // Steps: name -> phone -> subject -> mode -> region(optional) -> target -> confirm -> done
   var state = { step:'name', data:{} };
 
   function reset(){
@@ -673,55 +739,74 @@
     setQuick([]);
   }
 
-  function normalizePhone(s){
-    var d = String(s||'').replace(/[^0-9]/g,'');
-    return d;
-  }
-
   async function submit(){
+    var noteLines = [];
+    if(state.data.schedule){
+      noteLines.push('희망 요일/시간대: ' + state.data.schedule);
+    }
+    if(state.data.note){
+      noteLines.push(String(state.data.note));
+    }
+
     var payload = {
       name: state.data.name,
       phone: state.data.phone,
-      target: state.data.target,
-      consent: true
+      subjects: state.data.subjects || [],
+      target: state.data.target || null,
+      mode: state.data.mode || 'ZOOM',
+      region: state.data.region || null,
+      note: noteLines.length ? noteLines.join('\n') : null,
+      preferredInstructorType: 'ANY'
     };
 
     addMsg('bot','신청 내용을 접수하고 있어요… 잠시만요!');
+
     try{
       var api = (window.CodeAI && window.CodeAI.request) ? window.CodeAI : null;
       var res;
       if(api){
-        res = await api.request('/api/v1/applications/enroll', { method:'POST', body: JSON.stringify(payload) });
+        res = await api.request('/api/v1/public/student-applications', { method:'POST', body: JSON.stringify(payload) });
       }else{
         var base = (window.CODEAI_API_BASE || 'https://api.codeai.co.kr').replace(/\/+$/g,'');
-        res = await fetch(base + '/api/v1/applications/enroll', {
+        res = await fetch(base + '/api/v1/public/student-applications', {
           method:'POST',
           headers:{'Content-Type':'application/json'},
           body: JSON.stringify(payload)
-        }).then(function(r){ return r.json().then(function(j){ if(!r.ok) throw j; return j; }); });
+        }).then(function(r){
+          return r.json().then(function(j){ if(!r.ok) throw j; return j; });
+        });
       }
 
-      if(res && res.ok){
-        addMsg('bot','접수 완료! ✅\n담당자가 빠른 시간 내에 연락드릴게요.\n(성함: ' + payload.name + ' / 연락처: ' + payload.phone + ' / 대상: ' + payload.target + ')');
+      if(res && (res.ok || res.studentApplication || res.id)){
+        addMsg('bot','접수 완료! ✅\n담당자가 빠른 시간 내에 연락드릴게요.\n(성함: ' + payload.name + ' / 연락처: ' + payload.phone + ' / 과목: ' + (payload.subjects||[]).join(', ') + (payload.target?(' / 대상: '+payload.target):'') + ' / 형태: ' + (payload.mode === 'ZOOM' ? '온라인(Zoom)' : (payload.mode === 'OFFLINE_1_1' ? '오프라인 1:1' : '오프라인 그룹')) + (payload.mode !== 'ZOOM' && payload.region ? (' / 지역: ' + payload.region) : '') + (state.data.schedule ? (' / 희망: ' + state.data.schedule) : '') + ')');
         setQuick([{label:'채팅 닫기', value:'__close__'},{label:'새로 신청', value:'__restart__'}]);
         state.step = 'done';
       }else{
-        addMsg('bot','죄송해요. 접수 중 오류가 발생했어요.\n잠시 후 다시 시도해 주세요.');
+        addMsg('bot','죄송해요. 접수 중 오류가 발생했어요.\n입력 내용을 확인한 뒤 다시 시도해 주세요.');
         setQuick([{label:'다시 시도', value:'__submit__'},{label:'처음부터', value:'__restart__'}]);
       }
     }catch(err){
-      addMsg('bot','죄송해요. 접수 중 오류가 발생했어요.\n잠시 후 다시 시도해 주세요.');
+      var msg = '죄송해요. 접수 중 오류가 발생했어요.\n입력 내용을 확인한 뒤 다시 시도해 주세요.';
+      try{
+        if(err && err.code) msg += '\n(' + String(err.code) + ')';
+        else if(err && err.message) msg += '\n(' + String(err.message).slice(0,120) + ')';
+      }catch(_){}
+      addMsg('bot', msg);
       setQuick([{label:'다시 시도', value:'__submit__'},{label:'처음부터', value:'__restart__'}]);
     }
   }
 
-  function handleUserInput(text, fromQuick){
+  function handleUserInput(text){
     var raw = String(text || '').trim();
     if(!raw) return;
 
     if(raw === '__close__'){ closeChat(); return; }
     if(raw === '__restart__'){ reset(); return; }
     if(raw === '__submit__'){ submit(); return; }
+    if(raw === '__custom_subject__'){
+      addMsg('bot','원하시는 과목을 직접 입력해 주세요. 예) Python, Scratch');
+      return;
+    }
 
     addMsg('user', raw);
 
@@ -736,69 +821,151 @@
     if(state.step === 'phone'){
       var p = normalizePhone(raw);
       if(p.length < 10 || p.length > 11){
-        addMsg('bot','휴대폰 번호를 숫자만 10~11자리로 입력해 주세요.\n예: 01012345678');
+        addMsg('bot','휴대폰 번호를 다시 확인해 주세요. 숫자만 입력해 주세요! (예: 01012345678)');
         return;
       }
       state.data.phone = p;
+      state.step = 'subject';
+      addMsg('bot','감사합니다!\n신청할 과목을 선택해 주세요. (복수 과목은 쉼표로 입력해도 돼요)');
+      setQuick([
+        {label:'Python', value:'Python'},
+        {label:'Scratch', value:'Scratch'},
+        {label:'App Inventor', value:'App Inventor'},
+        {label:'웹(HTML/JS)', value:'Web'},
+        {label:'로봇/아두이노', value:'Robot/Arduino'},
+        {label:'AI/데이터', value:'AI/데이터'},
+        {label:'C/C++', value:'C/C++'},
+        {label:'Java', value:'Java'},
+        {label:'Unity/게임', value:'Unity/게임'},
+        {label:'기타(직접입력)', value:'__custom_subject__'}
+      ]);
+      return;
+    }
+
+    if(state.step === 'subject'){
+      var subs = String(raw).split(/[,/]/g).map(function(s){ return String(s||'').trim(); }).filter(Boolean).slice(0,5);
+      if(!subs.length){
+        addMsg('bot','과목을 다시 선택/입력해 주세요.');
+        return;
+      }
+      state.data.subjects = subs;
+      state.step = 'mode';
+      addMsg('bot','수업 형태를 선택해 주세요.');
+      setQuick([
+        {label:'온라인(Zoom)', value:'ZOOM'},
+        {label:'오프라인 1:1', value:'OFFLINE_1_1'},
+        {label:'오프라인 그룹', value:'OFFLINE_GROUP'}
+      ]);
+      return;
+    }
+
+    if(state.step === 'mode'){
+      var m = raw;
+      if(!['ZOOM','OFFLINE_1_1','OFFLINE_GROUP'].includes(m)){
+        addMsg('bot','버튼으로 선택해 주세요. (온라인/오프라인)');
+        return;
+      }
+      state.data.mode = m;
+
+      if(m !== 'ZOOM'){
+        state.step = 'region';
+        addMsg('bot','오프라인 수업을 선택하셨어요.\n희망 지역(예: 용인 수지 / 분당 / 강남)을 입력해 주세요.');
+        setQuick([]);
+        return;
+      }
+
       state.step = 'target';
-      addMsg('bot','마지막으로 수강 대상(학년/레벨)을 선택해 주세요.');
+      addMsg('bot','대상을 선택해 주세요.');
       setQuick([
         {label:'초등', value:'초등'},
-        {label:'중등', value:'중등'},
-        {label:'고등', value:'고등'},
-        {label:'성인/기타', value:'성인/기타'}
+        {label:'중등', value:'중·고등'},
+        {label:'성인', value:'성인'}
+      ]);
+      return;
+    }
+
+    if(state.step === 'region'){
+      state.data.region = raw;
+      state.step = 'target';
+      addMsg('bot','대상을 선택해 주세요.');
+      setQuick([
+        {label:'초등', value:'초등'},
+        {label:'중등', value:'중·고등'},
+        {label:'성인', value:'성인'}
       ]);
       return;
     }
 
     if(state.step === 'target'){
       state.data.target = raw;
-      state.step = 'consent';
-      addMsg('bot','개인정보 수집·이용에 동의하시면 접수할게요. (필수)');
-      setQuick([{label:'동의하고 접수', value:'__submit__'},{label:'처음부터', value:'__restart__'}]);
+      state.step = 'schedule';
+      addMsg('bot','마지막으로, 희망 요일/시간대를 선택(또는 입력)해 주세요.\n(예: 월수금 18~20시 / 토 오전 / 평일 7시 이후)');
+      setQuick([
+        {label:'상관없음', value:'상관없음'},
+        {label:'평일 저녁', value:'평일(월~금) 17시 이후'},
+        {label:'토요일', value:'토요일'},
+        {label:'주말', value:'주말(토/일)'},
+        {label:'직접입력', value:'__custom_schedule__'}
+      ]);
       return;
     }
 
-    if(state.step === 'consent'){
-      addMsg('bot','아래 버튼을 눌러 접수해 주세요.');
-      setQuick([{label:'동의하고 접수', value:'__submit__'},{label:'처음부터', value:'__restart__'}]);
+    if(state.step === 'schedule'){
+      if(raw === '__custom_schedule__'){
+        state.step = 'schedule_text';
+        addMsg('bot','희망 요일/시간대를 입력해 주세요.\n(예: 화목 19~21시 / 수 6시 / 토 10~12시)');
+        setQuick([]);
+        return;
+      }
+      state.data.schedule = raw;
+      state.step = 'confirm';
+      addMsg('bot','마지막 확인이에요!\n아래 버튼을 누르면 신청이 접수됩니다.');
+      setQuick([{label:'신청하기', value:'__submit__'},{label:'처음부터', value:'__restart__'}]);
       return;
     }
 
-    if(state.step === 'done'){
-      addMsg('bot','추가 문의가 있으면 “새로 신청”을 눌러주세요.');
-      setQuick([{label:'채팅 닫기', value:'__close__'},{label:'새로 신청', value:'__restart__'}]);
+    if(state.step === 'schedule_text'){
+      var s = String(raw||'').trim();
+      if(!s){
+        addMsg('bot','희망 요일/시간대를 다시 입력해 주세요.');
+        return;
+      }
+      state.data.schedule = s;
+      state.step = 'confirm';
+      addMsg('bot','마지막 확인이에요!\n아래 버튼을 누르면 신청이 접수됩니다.');
+      setQuick([{label:'신청하기', value:'__submit__'},{label:'처음부터', value:'__restart__'}]);
       return;
     }
   }
 
-  // UI 이벤트 바인딩
-  fab.addEventListener('click', function(){ openChat(); });
-  btnClose.addEventListener('click', function(){ closeChat(); });
-  btnRestart.addEventListener('click', function(){ reset(); });
-
-  btnSend.addEventListener('click', function(){
+  function sendFromInput(){
     var v = input.value;
     input.value = '';
-    handleUserInput(v, false);
-  });
+    handleUserInput(v);
+  }
+
+  fab.addEventListener('click', openChat);
+  btnClose.addEventListener('click', closeChat);
+  btnRestart.addEventListener('click', reset);
+
+  btnSend.addEventListener('click', sendFromInput);
   input.addEventListener('keydown', function(e){
     if(e && e.key === 'Enter'){
       e.preventDefault();
-      btnSend.click();
+      sendFromInput();
     }
   });
 
   qsAll('.js-open-enroll-chat').forEach(function(a){
-    a.addEventListener('click', function(ev){
-      try{ ev.preventDefault(); }catch(_){}
+    a.addEventListener('click', function(e){
+      try{ e.preventDefault(); }catch(_){}
       openChat();
     });
   });
 
-  // 초기화
   reset();
 })();
+
 </script> <!-- ======= End Course Registration Chat Widget ======= -->
 <a class="back-to-top d-flex align-items-center justify-content-center" href="#"><i class="bi bi-arrow-up-short"></i></a>
 <!-- Vendor JS Files -->
