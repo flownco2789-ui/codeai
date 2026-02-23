@@ -34,8 +34,34 @@
 (function(){})();
 </script>
 <script type="text/javascript">const agent = window.navigator.userAgent.toLowerCase(); var left_pos = "10px"; var left_pos_x = "85px"; var left_pos_x = "85px"; /* switch (true) { case agent.indexOf("edge") > -1: left_pos='100px'; left_pos_x = "175px"; break; // MS 엣지 case agent.indexOf("edg/") > -1: left_pos='100px'; left_pos_x = "175px"; break; // MS 엣지 case agent.indexOf("opr") > -1: left_pos='10px'; left_pos_x = "85px"; break; // 오페라 (미확인) case agent.indexOf("whale") > -1: left_pos='36px'; left_pos_x = "111px"; break; // 웨일 case agent.indexOf("chrome") > -1: left_pos='10px'; left_pos_x = "85px"; break; // 크롬 case agent.indexOf("trident") > -1: left_pos='10px'; left_pos_x = "85px"; break; // IE (미확인) case agent.indexOf("firefox") > -1: left_pos='150px'; left_pos_x = "225px"; break; // 파이어폭스 case agent.indexOf("safari") > -1: left_pos='10px'; left_pos_x = "85px"; break; // 사파리 (미확인) default: break; } */ //document.getElementById('id_ssl_tooltip_text').style.left = left_pos; //document.getElementById('id_ssl_tip_close').style.left = left_pos_x; //jQuery("#id_ssl_tooltip_text").css('left',left_pos); //jQuery("#id_ssl_tooltip").css('left',left_pos_x);</script>
-<script type="text/javascript">let start=Date.now, now=start; while ((now-start) < 1000) { now = Date.now; } //document.getElementById('id_ssl_tooltip').style.display = ""; jQuery("#id_ssl_tooltip").show; jQuery("#id_ssl_tooltip_text").fadeIn(500); jQuery("#id_https_tooltip_close").fadeIn(1000); var params = { action : "f_view" };
-/* jQuery.ajax({ type : "POST", url : "/s_b_s.php", data : params, success : function(res) { //성공시 }, error : function(XMLHttpRequest, textStatus, errorThrown) { //에러시 } });
-*/ var DateMonth = new Date; var nowMonth = ( DateMonth.getMonth + 1 ) ; var starbuck_img_gubun = '' ; // 현재 날짜 출력 document.getElementById("last_year").innerHTML = DateMonth.getFullYear;	// 현재 년도(ex. 2022) $('.starbucks_date').html( nowMonth ); // 현재 월(ex. 7) // 스타벅스 이미지 구분 if ( nowMonth >= 4 && nowMonth <= 9 ) starbuck_img_gubun = 'https://error.whoisweb.net/img/new/star_ice.png' ; // 아이스커피 else starbuck_img_gubun = 'https://error.whoisweb.net/img/new/star.png' ; // 핫커피 $('#starbucks_img_change').attr('src',starbuck_img_gubun); // 현재 도메인 할당 $('.dom_name').html( $(location).attr('origin').replace(/(http\:\/\/|https\:\/\/)/, '') );</script>
+<script type="text/javascript">
+(function(){
+  try{
+    // Non-blocking init (removed CPU spin loop)
+    var d = new Date();
+    var nowMonth = d.getMonth() + 1;
+    var lastYearEl = document.getElementById('last_year');
+    if(lastYearEl) lastYearEl.textContent = String(d.getFullYear());
+
+    if(typeof window.jQuery === 'function'){
+      try{
+        jQuery('#id_ssl_tooltip_text').fadeIn(500);
+        jQuery('#id_https_tooltip_close').fadeIn(1000);
+      }catch(_){/* ignore */}
+      try{ jQuery('.starbucks_date').html(nowMonth); }catch(_){/* ignore */}
+      try{
+        var starbuckImg = (nowMonth >= 4 && nowMonth <= 9) ? 'https://error.whoisweb.net/img/new/star_ice.png' : 'https://error.whoisweb.net/img/new/star.png';
+        jQuery('#starbucks_img_change').attr('src', starbuckImg);
+      }catch(_){/* ignore */}
+      try{
+        var origin = (location && location.origin) ? String(location.origin) : '';
+        jQuery('.dom_name').html(origin.replace(/(http\:\/\/|https\:\/\/)/, ''));
+      }catch(_){/* ignore */}
+    }
+  }catch(e){
+    // keep silent (placeholder page)
+  }
+})();
+</script>
 </body>
 </html>

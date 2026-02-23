@@ -372,11 +372,10 @@ const featured = mustStr(req.query?.featured) || null;
     if(instructorType && instructorType !== "ANY"){
       sql += " AND instructor_type = :instructorType";
       params.instructorType = instructorType;
-    
+    }
     if(featured === "1"){
       sql += " AND is_featured = 1";
     }
-}
     sql += " ORDER BY id DESC LIMIT 50";
 
     const [rows] = await pool.query(sql, params);
@@ -399,6 +398,8 @@ const featured = mustStr(req.query?.featured) || null;
     console.error(e);
     bad(res,"SERVER_ERROR","Failed to list instructors",500);
   }
+
+});
 
 // 메인강사(Featured) 20명
 app.get("/api/v1/public/featured-instructors", async (req,res)=>{
@@ -443,7 +444,6 @@ app.get("/api/v1/public/stats", async (req,res)=>{
   }
 });
 
-});
 
 // 학생이 강사 선택
 app.post("/api/v1/public/student-applications/:id/select-instructor", async (req,res)=>{
